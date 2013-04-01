@@ -1,4 +1,0 @@
-[gate.module_factory]
-debug = gate.modules.debug:module_factory
-hash = gate.modules.hash:module_factory
-

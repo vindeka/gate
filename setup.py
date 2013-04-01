@@ -46,8 +46,12 @@ setup(
     scripts=[
         'bin/gate-init',
         'bin/gate-engine-server',
-        'bin/gate-hash-server',
-        'bin/gate-index-server',
         'bin/gate-process-server',
     ],
+    entry_points={
+        'gate.module_factory': [
+            'hash=gate.modules.hash:module_factory',
+            'debug=gate.modules.debug:module_factory',
+        ],
+    },
 )

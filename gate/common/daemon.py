@@ -40,9 +40,8 @@ class Daemon(object):
 
     def run(self, once=False, **kwargs):
         """Run the daemon"""
-        utils.validate_configuration()
-        utils.drop_privileges(self.conf.get('user', 'swift'))
-        utils.capture_stdio(self.logger, **kwargs)
+        #utils.drop_privileges(self.conf.get('user', 'gate'))
+        #utils.capture_stdio(self.logger, **kwargs)
 
         def kill_children(*args):
             signal.signal(signal.SIGTERM, signal.SIG_IGN)
@@ -60,8 +59,8 @@ def run_daemon(klass, conf_file, section_name='', once=False, **kwargs):
     """
     Loads settings from conf, then instantiates daemon "klass" and runs the
     daemon with the specified once kwarg.  The section_name will be derived
-    from the daemon "klass" if not provided (e.g. ObjectReplicator =>
-    object-replicator).
+    from the daemon "klass" if not provided (e.g. ProcessServer =>
+    process-server).
 
     :param klass: Class to instantiate, subclass of common.daemon.Daemon
     :param conf_file: Path to configuration file

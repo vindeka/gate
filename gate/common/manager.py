@@ -28,14 +28,13 @@ from gate.common.utils import search_tree, remove_file, write_file
 GATE_DIR = '/etc/gate'
 RUN_DIR = '/var/run/swift'
 
-SERVERS = ['gate-engine-server', 'gate-hash-server', 'gate-index-server', 'gate-process-server']
+SERVERS = ['gate-engine-server', 'gate-process-server']
 
 KILL_WAIT = 15  # seconds to wait for servers to die (by default)
 WARNING_WAIT = 3  # seconds to wait after message that may just be a warning
 
 MAX_DESCRIPTORS = 32768
 MAX_MEMORY = (1024 * 1024 * 1024) * 2  # 2 GB
-
 
 def setup_env():
     """Try to increase resource limits of the OS. Move PYTHON_EGG_CACHE to /tmp
@@ -328,7 +327,7 @@ class Server():
 
         """
         return conf_file.replace(
-            os.path.normpath(SWIFT_DIR), self.run_dir, 1).replace(
+            os.path.normpath(GATE_DIR), self.run_dir, 1).replace(
                 '%s-server' % self.type, self.server, 1).rsplit(
                     '.conf', 1)[0] + '.pid'
 
@@ -340,15 +339,10 @@ class Server():
         :returns: the conf_file for this pid_file
 
         """
-        if self.server in STANDALONE_SERVERS:
-            return pid_file.replace(
-                os.path.normpath(self.run_dir), SWIFT_DIR, 1)\
-                .rsplit('.pid', 1)[0] + '.conf'
-        else:
-            return pid_file.replace(
-                os.path.normpath(self.run_dir), SWIFT_DIR, 1).replace(
-                    self.server, '%s-server' % self.type, 1).rsplit(
-                        '.pid', 1)[0] + '.conf'
+        return pid_file.replace(
+            os.path.normpath(self.run_dir), GATE_DIR, 1).replace(
+                self.server, '%s-server' % self.type, 1).rsplit(
+                    '.pid', 1)[0] + '.conf'
 
     def conf_files(self, **kwargs):
         """Get conf files for this server
@@ -357,12 +351,8 @@ class Server():
 
         :returns: list of conf files
         """
-        if self.server in STANDALONE_SERVERS:
-            found_conf_files = search_tree(SWIFT_DIR, self.server + '*',
-                                           '.conf')
-        else:
-            found_conf_files = search_tree(SWIFT_DIR, '%s-server*' % self.type,
-                                           '.conf')
+        found_conf_files = search_tree(GATE_DIR, '%s-server*' % self.type,
+                                        '.conf')
         number = kwargs.get('number')
         if number:
             try:

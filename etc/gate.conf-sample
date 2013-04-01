@@ -1,6 +1,0 @@
-[gate-amqp]
-
-# connection string to use to connect to the amqp provider
-
-connection = amqp://guest:guest@localhost/
-

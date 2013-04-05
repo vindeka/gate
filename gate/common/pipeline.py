@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2013 Vindeka, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,22 +19,9 @@
 
 import os
 import glob
-import pkg_resources
 import gate.common.utils as utils
 from ConfigParser import ConfigParser
 
-class EggLoader(object):
-
-    def __init__(self, egg):
-        if egg.startswith('egg:'):
-            egg = egg.replace('egg:', '')
-        name = egg.split('#')[0]
-        module = egg.split('#')[1]
-        dist = pkg_resources.get_distribution(name)
-        self.entry = dist.get_entry_info('gate.module_factory', module)
-
-    def __call__(self):
-        return self.entry.load()
 
 class Pipeline(object):
 
@@ -41,23 +30,25 @@ class Pipeline(object):
         self.objects = []
         self.inited = False
         config = ConfigParser()
-        config.read([ conf_file ])
+        config.read([conf_file])
         pipeline = config.get('pipeline:main', 'pipeline')
         for p in pipeline.split(' '):
             p = p.strip()
             use = config.get('module:%s' % p, 'use')
             if use.startswith('egg:'):
                 try:
-                    loader = EggLoader(use)()
+                    loader = utils.load_egg(use, 'gate.module_factory')
                 except Exception, e:
-                    raise ImportError('module:%s could not be loaded : %s' % (p, e))
+                    raise ImportError('module:%s could not be loaded : %s'
+                             % (p, e))
 
                 mod_conf = utils.readconf(conf_file, 'module:%s' % p)
                 try:
                     l = loader(mod_conf)
                     self.objects.append(l)
                 except Exception, e:
-                    raise ImportError('module:%s failed to initialize : %s' % (p, e))
+                    raise ImportError('module:%s failed to initialize : %s'
+                             % (p, e))
 
     def initialize(self):
         if not self.inited:
@@ -72,11 +63,13 @@ class Pipeline(object):
             o.process(proc, data_obj)
             data_obj.reset()
 
+
 class Pipelines(object):
 
     def __init__(self, dir):
-        self.pipelines = {};
-        for file in glob.glob(os.path.join(dir, 'pipelines.d', '*.conf')):
+        self.pipelines = {}
+        for file in glob.glob(os.path.join(dir, 'pipelines.d', '*.conf'
+                              )):
             name = os.path.splitext(os.path.basename(file))[0]
             self.pipelines[name] = Pipeline(name, file)
 

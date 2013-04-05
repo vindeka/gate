@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2013 Vindeka, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +18,9 @@
 import hashlib
 from gate.common.utils import get_logger
 
+
 class HashModule(object):
+
     """
     Hashing module, provides hashing to all data that passes through the
     pipeline.
@@ -35,7 +39,8 @@ class HashModule(object):
         for a in algos.split(' '):
             self.algos.append(a.strip())
 
-        self.logger.debug('Initialising hash module with algos: %s' % algos)
+        self.logger.debug('Initialising hash module with algos: %s'
+                          % algos)
 
     def process(self, proc, data_obj):
         for algo in self.algos:
@@ -64,4 +69,7 @@ class HashModule(object):
 
 def module_factory(conf):
     """Returns a module for use with gate."""
+
     return HashModule(conf)
+
+

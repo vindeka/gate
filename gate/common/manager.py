@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2010-2012 OpenStack, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +28,7 @@ import re
 from gate.common.utils import search_tree, remove_file, write_file
 
 GATE_DIR = '/etc/gate'
-RUN_DIR = '/var/run/swift'
+RUN_DIR = '/var/run/gate'
 
 SERVERS = ['gate-engine-server', 'gate-process-server']
 
@@ -34,19 +36,21 @@ KILL_WAIT = 15  # seconds to wait for servers to die (by default)
 WARNING_WAIT = 3  # seconds to wait after message that may just be a warning
 
 MAX_DESCRIPTORS = 32768
-MAX_MEMORY = (1024 * 1024 * 1024) * 2  # 2 GB
+MAX_MEMORY = 1024 * 1024 * 1024 * 2  # 2 GB
+
 
 def setup_env():
     """Try to increase resource limits of the OS. Move PYTHON_EGG_CACHE to /tmp
     """
+
     try:
-        resource.setrlimit(resource.RLIMIT_NOFILE,
-                           (MAX_DESCRIPTORS, MAX_DESCRIPTORS))
-        resource.setrlimit(resource.RLIMIT_DATA,
-                           (MAX_MEMORY, MAX_MEMORY))
+        resource.setrlimit(resource.RLIMIT_NOFILE, (MAX_DESCRIPTORS,
+                           MAX_DESCRIPTORS))
+        resource.setrlimit(resource.RLIMIT_DATA, (MAX_MEMORY,
+                           MAX_MEMORY))
     except ValueError:
-        print _("WARNING: Unable to increase file descriptor limit.  "
-                "Running as non-root?")
+        print _('WARNING: Unable to increase file descriptor limit.  Running as non-root?'
+                )
 
     os.environ['PYTHON_EGG_CACHE'] = '/tmp'
 
@@ -58,12 +62,13 @@ def command(func):
 
     :param func: function to make public
     """
+
     func.publicly_accessible = True
 
     @functools.wraps(func)
     def wrapped(*a, **kw):
         rv = func(*a, **kw)
-        return 1 if rv else 0
+        return (1 if rv else 0)
     return wrapped
 
 
@@ -74,29 +79,40 @@ def watch_server_pids(server_pids, interval=1, **kwargs):
     :param server_pids: a dict, lists of pids [int,...] keyed on
                         Server objects
     """
+
     status = {}
     start = time.time()
     end = start + interval
     server_pids = dict(server_pids)  # make a copy
     while True:
-        for server, pids in server_pids.items():
+        for (server, pids) in server_pids.items():
             for pid in pids:
                 try:
+
                     # let pid stop if it wants to
+
                     os.waitpid(pid, os.WNOHANG)
                 except OSError, e:
                     if e.errno not in (errno.ECHILD, errno.ESRCH):
-                        raise  # else no such child/process
+                        raise   # else no such child/process
+
             # check running pids for server
+
             status[server] = server.get_running_pids(**kwargs)
             for pid in pids:
+
                 # original pids no longer in running pids!
+
                 if pid not in status[server]:
-                    yield server, pid
+                    yield (server, pid)
+
             # update active pids list using running_pids
+
             server_pids[server] = status[server]
-        if not [p for server, pids in status.items() for p in pids]:
+        if not [p for (server, pids) in status.items() for p in pids]:
+
             # no more running pids
+
             break
         if time.time() > end:
             break
@@ -105,10 +121,12 @@ def watch_server_pids(server_pids, interval=1, **kwargs):
 
 
 class UnknownCommandError(Exception):
+
     pass
 
 
-class Manager():
+class Manager:
+
     """Main class for performing commands on groups of servers.
 
     :param servers: list of server names as strings
@@ -131,6 +149,7 @@ class Manager():
     def status(self, **kwargs):
         """display status of tracked pids for server
         """
+
         status = 0
         for server in self.servers:
             status += server.status(**kwargs)
@@ -140,6 +159,7 @@ class Manager():
     def start(self, **kwargs):
         """starts a server
         """
+
         setup_env()
         status = 0
 
@@ -162,6 +182,7 @@ class Manager():
     def no_wait(self, **kwargs):
         """spawn server and return immediately
         """
+
         kwargs['wait'] = False
         return self.start(**kwargs)
 
@@ -169,6 +190,7 @@ class Manager():
     def no_daemon(self, **kwargs):
         """start a server interactively
         """
+
         kwargs['daemon'] = False
         return self.start(**kwargs)
 
@@ -176,6 +198,7 @@ class Manager():
     def once(self, **kwargs):
         """start server and run one pass on supporting daemons
         """
+
         kwargs['once'] = True
         return self.start(**kwargs)
 
@@ -183,6 +206,7 @@ class Manager():
     def stop(self, **kwargs):
         """stops a server
         """
+
         server_pids = {}
         for server in self.servers:
             signaled_pids = server.stop(**kwargs)
@@ -192,32 +216,41 @@ class Manager():
                 server_pids[server] = signaled_pids
 
         # all signaled_pids, i.e. list(itertools.chain(*server_pids.values()))
-        signaled_pids = [p for server, pids in server_pids.items()
+
+        signaled_pids = [p for (server, pids) in server_pids.items()
                          for p in pids]
+
         # keep track of the pids yeiled back as killed for all servers
+
         killed_pids = set()
         kill_wait = kwargs.get('kill_wait', KILL_WAIT)
-        for server, killed_pid in watch_server_pids(server_pids,
-                                                    interval=kill_wait,
-                                                    **kwargs):
-            print _("%s (%s) appears to have stopped") % (server, killed_pid)
+        for (server, killed_pid) in watch_server_pids(server_pids,
+                interval=kill_wait, **kwargs):
+            print _('%s (%s) appears to have stopped') % (server,
+                    killed_pid)
             killed_pids.add(killed_pid)
             if not killed_pids.symmetric_difference(signaled_pids):
+
                 # all proccesses have been stopped
+
                 return 0
 
         # reached interval n watch_pids w/o killing all servers
-        for server, pids in server_pids.items():
+
+        for (server, pids) in server_pids.items():
             if not killed_pids.issuperset(pids):
+
                 # some pids of this server were not killed
-                print _('Waited %s seconds for %s to die; giving up') % (
-                    kill_wait, server)
+
+                print _('Waited %s seconds for %s to die; giving up') \
+                    % (kill_wait, server)
         return 1
 
     @command
     def shutdown(self, **kwargs):
         """allow current requests to finish on supporting servers
         """
+
         kwargs['graceful'] = True
         status = 0
         status += self.stop(**kwargs)
@@ -227,6 +260,7 @@ class Manager():
     def restart(self, **kwargs):
         """stops then restarts server
         """
+
         status = 0
         status += self.stop(**kwargs)
         status += self.start(**kwargs)
@@ -236,6 +270,7 @@ class Manager():
     def reload(self, **kwargs):
         """graceful shutdown then restart on supporting servers
         """
+
         kwargs['graceful'] = True
         status = 0
         for server in self.servers:
@@ -248,6 +283,7 @@ class Manager():
     def force_reload(self, **kwargs):
         """alias for reload
         """
+
         return self.reload(**kwargs)
 
     def get_command(self, cmd):
@@ -257,6 +293,7 @@ class Manager():
                     UnknownCommandError
 
         """
+
         cmd = cmd.lower().replace('-', '_')
         try:
             f = getattr(self, cmd)
@@ -273,10 +310,12 @@ class Manager():
         :returns: a list of string tuples (cmd, help), the method names who are
                   decorated as commands
         """
+
         get_method = lambda cmd: getattr(cls, cmd)
-        return sorted([(x.replace('_', '-'), get_method(x).__doc__.strip())
-                       for x in dir(cls) if
-                       getattr(get_method(x), 'publicly_accessible', False)])
+        return sorted([(x.replace('_', '-'),
+                      get_method(x).__doc__.strip()) for x in dir(cls)
+                      if getattr(get_method(x), 'publicly_accessible',
+                      False)])
 
     def run_command(self, cmd, **kwargs):
         """Find the named command and run it
@@ -284,11 +323,13 @@ class Manager():
         :param cmd: the command name to run
 
         """
+
         f = self.get_command(cmd)
         return f(**kwargs)
 
 
-class Server():
+class Server:
+
     """Manage operations on a server or group of servers of similar type
 
     :param server: name of server
@@ -307,7 +348,7 @@ class Server():
         return self.server
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, repr(str(self)))
+        return '%s(%s)' % (self.__class__.__name__, repr(str(self)))
 
     def __hash__(self):
         return hash(str(self))
@@ -326,10 +367,11 @@ class Server():
         :returns: the pid_file for this conf_file
 
         """
-        return conf_file.replace(
-            os.path.normpath(GATE_DIR), self.run_dir, 1).replace(
-                '%s-server' % self.type, self.server, 1).rsplit(
-                    '.conf', 1)[0] + '.pid'
+
+        return conf_file.replace(os.path.normpath(GATE_DIR),
+                                 self.run_dir, 1).replace('%s-server'
+                % self.type, self.server, 1).rsplit('.conf', 1)[0] \
+            + '.pid'
 
     def get_conf_file_name(self, pid_file):
         """Translate pid_file to a corresponding conf_file
@@ -339,10 +381,11 @@ class Server():
         :returns: the conf_file for this pid_file
 
         """
-        return pid_file.replace(
-            os.path.normpath(self.run_dir), GATE_DIR, 1).replace(
-                self.server, '%s-server' % self.type, 1).rsplit(
-                    '.pid', 1)[0] + '.conf'
+
+        return pid_file.replace(os.path.normpath(self.run_dir),
+                                GATE_DIR, 1).replace(self.server,
+                '%s-server' % self.type, 1).rsplit('.pid', 1)[0] \
+            + '.conf'
 
     def conf_files(self, **kwargs):
         """Get conf files for this server
@@ -351,8 +394,9 @@ class Server():
 
         :returns: list of conf files
         """
-        found_conf_files = search_tree(GATE_DIR, '%s-server*' % self.type,
-                                        '.conf')
+
+        found_conf_files = search_tree(GATE_DIR, '%s-server*'
+                % self.type, '.conf')
         number = kwargs.get('number')
         if number:
             try:
@@ -362,14 +406,17 @@ class Server():
         else:
             conf_files = found_conf_files
         if not conf_files:
+
             # maybe there's a config file(s) out there, but I couldn't find it!
+
             if not kwargs.get('quiet'):
-                print _('Unable to locate config %sfor %s') % (
-                    ('number %s ' % number if number else ''), self.server)
+                print _('Unable to locate config %sfor %s') \
+                    % (('number %s ' % number if number else ''),
+                       self.server)
             if kwargs.get('verbose') and not kwargs.get('quiet'):
                 if found_conf_files:
                     print _('Found configs:')
-                for i, conf_file in enumerate(found_conf_files):
+                for (i, conf_file) in enumerate(found_conf_files):
                     print '  %d) %s' % (i + 1, conf_file)
 
         return conf_files
@@ -381,19 +428,25 @@ class Server():
 
         :returns: list of pid files
         """
-        pid_files = search_tree(self.run_dir, '%s*' % self.server, '.pid')
+
+        pid_files = search_tree(self.run_dir, '%s*' % self.server,
+                                '.pid')
         if kwargs.get('number', 0):
             conf_files = self.conf_files(**kwargs)
+
             # filter pid_files to match the index of numbered conf_file
-            pid_files = [pid_file for pid_file in pid_files if
-                         self.get_conf_file_name(pid_file) in conf_files]
+
+            pid_files = [pid_file for pid_file in pid_files
+                         if self.get_conf_file_name(pid_file)
+                         in conf_files]
         return pid_files
 
     def iter_pid_files(self, **kwargs):
         """Generator, yields (pid_file, pids)
         """
+
         for pid_file in self.pid_files(**kwargs):
-            yield pid_file, int(open(pid_file).read().strip())
+            yield (pid_file, int(open(pid_file).read().strip()))
 
     def signal_pids(self, sig, **kwargs):
         """Send a signal to pids for this server
@@ -403,23 +456,28 @@ class Server():
         :returns: a dict mapping pids (ints) to pid_files (paths)
 
         """
+
         pids = {}
-        for pid_file, pid in self.iter_pid_files(**kwargs):
+        for (pid_file, pid) in self.iter_pid_files(**kwargs):
             try:
                 if sig != signal.SIG_DFL:
-                    print _('Signal %s  pid: %s  signal: %s') % (self.server,
-                                                                 pid, sig)
+                    print _('Signal %s  pid: %s  signal: %s') \
+                        % (self.server, pid, sig)
                 os.kill(pid, sig)
             except OSError, e:
                 if e.errno == errno.ESRCH:
+
                     # pid does not exist
+
                     if kwargs.get('verbose'):
-                        print _("Removing stale pid file %s") % pid_file
+                        print _('Removing stale pid file %s') % pid_file
                     remove_file(pid_file)
                 elif e.errno == errno.EPERM:
-                    print _("No permission to signal PID %d") % pid
+                    print _('No permission to signal PID %d') % pid
             else:
+
                 # process exists
+
                 pids[pid] = pid_file
         return pids
 
@@ -429,6 +487,7 @@ class Server():
         :returns: a dict mapping pids (ints) to pid_files (paths)
 
         """
+
         return self.signal_pids(signal.SIG_DFL, **kwargs)  # send noop
 
     def kill_running_pids(self, **kwargs):
@@ -439,6 +498,7 @@ class Server():
         :returns: a dict mapping pids (ints) to pid_files (paths)
 
         """
+
         graceful = kwargs.get('graceful')
         if graceful and self.server in GRACEFUL_SHUTDOWN_SERVERS:
             sig = signal.SIGHUP
@@ -454,6 +514,7 @@ class Server():
 
         :returns: 1 if server is not running, 0 otherwise
         """
+
         if pids is None:
             pids = self.get_running_pids(**kwargs)
         if not pids:
@@ -462,17 +523,25 @@ class Server():
                 kwargs['quiet'] = True
                 conf_files = self.conf_files(**kwargs)
                 if conf_files:
-                    print _("%s #%d not running (%s)") % (self.server, number,
-                                                          conf_files[0])
+                    print _('%s #%d not running (%s)') % (self.server,
+                            number, conf_files[0])
             else:
-                print _("No %s running") % self.server
+                print _('No %s running') % self.server
             return 1
-        for pid, pid_file in pids.items():
+        for (pid, pid_file) in pids.items():
             conf_file = self.get_conf_file_name(pid_file)
-            print _("%s running (%s - %s)") % (self.server, pid, conf_file)
+            print _('%s running (%s - %s)') % (self.server, pid,
+                    conf_file)
         return 0
 
-    def spawn(self, conf_file, once=False, wait=True, daemon=True, **kwargs):
+    def spawn(
+        self,
+        conf_file,
+        once=False,
+        wait=True,
+        daemon=True,
+        **kwargs
+        ):
         """Launch a subprocess for this server.
 
         :param conf_file: path to conf_file to use as first arg
@@ -482,22 +551,30 @@ class Server():
 
         :returns : the pid of the spawned process
         """
+
         args = [self.cmd, conf_file]
         if once:
             args.append('once')
         if not daemon:
+
             # ask the server to log to console
+
             args.append('verbose')
 
         # figure out what we're going to do with stdio
+
         if not daemon:
+
             # do nothing, this process is open until the spawns close anyway
+
             re_out = None
             re_err = None
         else:
             re_err = subprocess.STDOUT
             if wait:
+
                 # we're going to need to block on this...
+
                 re_out = subprocess.PIPE
             else:
                 re_out = open(os.devnull, 'w+b')
@@ -511,14 +588,19 @@ class Server():
         """
         wait on spawned procs to start
         """
+
         status = 0
         for proc in self.procs:
+
             # wait for process to close its stdout
+
             output = proc.stdout.read()
             if output:
                 print output
                 start = time.time()
+
                 # wait for process to die (output may just be a warning)
+
                 while time.time() - start < WARNING_WAIT:
                     time.sleep(0.1)
                     if proc.poll() is not None:
@@ -530,9 +612,12 @@ class Server():
         """
         wait on spawned procs to terminate
         """
+
         status = 0
         for proc in self.procs:
+
             # wait for process to terminate
+
             proc.communicate()
             if proc.returncode:
                 status += 1
@@ -542,6 +627,7 @@ class Server():
         """
         Collect conf files and attempt to spawn the processes for this server
         """
+
         conf_files = self.conf_files(**kwargs)
         if not conf_files:
             return []
@@ -549,21 +635,25 @@ class Server():
         pids = self.get_running_pids(**kwargs)
 
         already_started = False
-        for pid, pid_file in pids.items():
+        for (pid, pid_file) in pids.items():
             conf_file = self.get_conf_file_name(pid_file)
+
             # for legacy compat you can't start other servers if one server is
             # already running (unless -n specifies which one you want), this
             # restriction could potentially be lifted, and launch could start
             # any unstarted instances
+
             if conf_file in conf_files:
                 already_started = True
-                print _("%s running (%s - %s)") % (self.server, pid, conf_file)
+                print _('%s running (%s - %s)') % (self.server, pid,
+                        conf_file)
             elif not kwargs.get('number', 0):
                 already_started = True
-                print _("%s running (%s - %s)") % (self.server, pid, pid_file)
+                print _('%s running (%s - %s)') % (self.server, pid,
+                        pid_file)
 
         if already_started:
-            print _("%s already started...") % self.server
+            print _('%s already started...') % self.server
             return []
 
         if self.server not in START_ONCE_SERVERS:
@@ -580,8 +670,10 @@ class Server():
                 pid = self.spawn(conf_file, **kwargs)
             except OSError, e:
                 if e.errno == errno.ENOENT:
+
                     # TODO: should I check if self.cmd exists earlier?
-                    print _("%s does not exist") % self.cmd
+
+                    print _('%s does not exist') % self.cmd
                     break
             pids[pid] = conf_file
 
@@ -593,4 +685,7 @@ class Server():
         :returns: a dict mapping pids (ints) to pid_files (paths)
 
         """
+
         return self.kill_running_pids(**kwargs)
+
+

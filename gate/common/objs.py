@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2013 Vindeka, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,22 +22,32 @@ import struct
 import numpy
 import tempfile
 
-from gate.common.swift import get_object_stream
 
 class DataObject(object):
+
     """
     Data object that is passed between the modules in a pipeline. Contains the
     attributes and the data for the given object.
     """
 
-    def __init__(self, case_id, id, type, name, path, attrs = None):
+    def __init__(
+        self,
+        app,
+        case_id,
+        id,
+        type,
+        name,
+        path,
+        attrs=None,
+        ):
+        self._app = app
         self.__dict__['attrs'] = {
-            'case_id' : case_id,
-            'id' : id,
+            'case_id': case_id,
+            'id': id,
             'type': type,
-            'name' : name,
-            'path' : path,
-        }
+            'name': name,
+            'path': path,
+            }
         if attrs is not None:
             self.__dict__['attrs'].update(attrs)
 
@@ -58,6 +70,9 @@ class DataObject(object):
                 keys.append(k)
         return keys
 
+    def __len__(self):
+        return self.size()
+
     def fileno(self):
         return self['id']
 
@@ -75,16 +90,16 @@ class DataObject(object):
     def next(self):
         raise NotImplementedError
 
-    def read(self, size = None):
+    def read(self, size=None):
         raise NotImplementedError
 
-    def readline(self, size = None):
+    def readline(self, size=None):
         raise NotImplementedError
 
-    def readlines(self, sizehint = None):
+    def readlines(self, sizehint=None):
         raise NotImplementedError
 
-    def seek(self, offset, whence = 0):
+    def seek(self, offset, whence=0):
         raise NotImplementedError
 
     def tell(self):
@@ -105,26 +120,53 @@ class DataObject(object):
     def readquad(self):
         return struct.unpack('Q', self.read(8))[0]
 
-    def readbytes(self, size = None):
+    def readbytes(self, size=None):
         return numpy.fromstring(self.read(size), dtype='uint8')
 
     def _close(self):
         pass
 
+
 class MemoryDataObject(DataObject):
+
     """
     Object holds the data for the object directly in memory, no access to actual
     file pointer is used.
     """
 
-    def __init__(self, case_id, id, type, name, path, data, attrs = None):
-        super(MemoryDataObject, self).__init__(case_id, id, type, name, path, attrs)
+    def __init__(
+        self,
+        app,
+        case_id,
+        id,
+        type,
+        name,
+        path,
+        data,
+        attrs=None,
+        ):
+        super(MemoryDataObject, self).__init__(
+            app,
+            case_id,
+            id,
+            type,
+            name,
+            path,
+            attrs,
+            )
 
         self._data = data
         self._offset = 0
 
     def copy(self):
-        c = MemoryDataObject(self.case_id, self.id, self.type, self.name, self.path, self._data.copy())
+        c = MemoryDataObject(
+            self.case_id,
+            self.id,
+            self.type,
+            self.name,
+            self.path,
+            self._data.copy(),
+            )
         for key in dir(self):
             setattr(c, key, getattr(self, key))
         return c
@@ -134,7 +176,7 @@ class MemoryDataObject(DataObject):
             return 0
         return len(self._data)
 
-    def read(self, size = None):
+    def read(self, size=None):
         if not self._data:
             return None
 
@@ -143,7 +185,7 @@ class MemoryDataObject(DataObject):
         total = self._offset + size
         return self._data[self._offset:total]
 
-    def seek(self, offset, whence = 0):
+    def seek(self, offset, whence=0):
         if not self._data:
             self.offset = 0
             return
@@ -154,7 +196,7 @@ class MemoryDataObject(DataObject):
             self._offset += offset
         elif whence == 2:
             self._offset = len(self._data) - offset
-        
+
         if self._offset < 0:
             self._offset = 0
         elif self._offset > len(self._data):
@@ -169,7 +211,9 @@ class MemoryDataObject(DataObject):
     def _close(self):
         self.reset()
 
+
 class URLDataObject(DataObject):
+
     """
     Object reads the data either locally or transfers the file from an object
     store to a temp location. Protocol support is below:
@@ -179,21 +223,31 @@ class URLDataObject(DataObject):
         swift: Loads the data form a swift object store.
             ex: swift:container/object
     """
-    def __init__(self, case_id, id, type, name, path, url, opt_attrs = None):
-        super(URLDataObject, self).__init__(case_id, id, type, name, path, opt_attrs)
+
+    def __init__(
+        self,
+        app,
+        case_id,
+        id,
+        type,
+        name,
+        path,
+        url,
+        opt_attrs=None,
+        ):
+        super(URLDataObject, self).__init__(
+            app,
+            case_id,
+            id,
+            type,
+            name,
+            path,
+            opt_attrs,
+            )
 
         self._url = url
         self._fp = None
         self._temp_path = None
-
-    def _url_type(self):
-        if not self._url:
-            raise Exception('URL object is missing URL.')
-        if self._url.startswith('local:'):
-            return ('local', self._url.replace('local:', ''))
-        if self._url.startswith('swift:'):
-            return ('swift', self._url.replace('swift:', ''))
-        raise Exception('URL object contained invalid URL: %s', self._url)
 
     def _open(self):
         if self._fp:
@@ -226,17 +280,21 @@ class URLDataObject(DataObject):
                 ex: swift:container/object
             local: Does nothing as file already exists locally.
         """
+
         if not self._url.startswith('swift:'):
-            raise Exception('URL object downloading currently only supports swift object store.')
+            raise Exception('URL object downloading currently only supports swift object store.'
+                            )
 
         url = self._url.replace('swift:', '')
-        container, obj = url.split('/', maxsplit = 1)
+        (container, obj) = url.split('/', maxsplit=1)
         if not container or not obj:
             raise Exception('Invalid swift url given: %s', url)
 
-        (status, reason, headers, stream) = get_object_stream(container, obj)
+        (status, reason, headers, stream) = \
+            get_object_stream(container, obj)
         if status != 200:
-            raise Exception('Failed to read object from storage: (%d) %s %s', status, reason, url)
+            raise Exception('Failed to read object from storage: (%d) %s %s'
+                            , status, reason, url)
 
         fp = open(self._temp_path, 'wb')
         while True:
@@ -246,7 +304,14 @@ class URLDataObject(DataObject):
         fp.close()
 
     def copy(self):
-        c = URLDataObject(self.case_id, self.id, self.type, self.name, self.path, self._url)
+        c = URLDataObject(
+            self.case_id,
+            self.id,
+            self.type,
+            self.name,
+            self.path,
+            self._url,
+            )
         for key in dir(self):
             setattr(c, key, getattr(self, key))
         return c
@@ -262,25 +327,25 @@ class URLDataObject(DataObject):
         self._open()
         return self._fp.next()
 
-    def read(self, size = None):
+    def read(self, size=None):
         self._open()
         if not size:
             return self._fp.read()
         return self._fp.read(size)
 
-    def readline(self, size = None):
+    def readline(self, size=None):
         self._open()
         if not size:
             return self._fp.readline()
         return self._fp.readline(size)
 
-    def readlines(self, sizehint = None):
+    def readlines(self, sizehint=None):
         self._open()
         if not sizehint:
             return self._fp.readlines()
         return self._fp.readlines(sizehint)
 
-    def seek(self, offset, whence = 0):
+    def seek(self, offset, whence=0):
         self._open()
         return self._fp.seek(offset, whence)
 
@@ -291,3 +356,5 @@ class URLDataObject(DataObject):
     def reset(self):
         self._open()
         self._fp.seek(0, 0)
+
+

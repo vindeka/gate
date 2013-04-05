@@ -44,11 +44,23 @@
 # object_inline_size.
 # compression = False
 
-[object-store]
+[process-server]
+# Large objects are not transported over the broker, an external service
+# is used. Builtin supported protocols: memcached, swift.
+large_object_transport = memcached
+
+[transport:memcached]
+use = egg:gate#transport-memcached
+# Connection information to the memcached services. Multiple servers
+# can be listed by seperating with a semi-colon ";".
+# servers = localhost:11211
+# debug = False
+
+[transport:swift]
+use = egg:gate#transport-swift
 # Swift object store connection information. Default communication uses
 # swift proxy, setting swift_proxy to True or to the storage path will
 # allow direct communication without the proxy server.
-# enabled = False
 # auth_url = http://localhost:5000/
 # auth_user = gate
 # auth_pass = gate
@@ -63,7 +75,6 @@
 # segment_size = 262144000
 
 # Path to store the storage url and auth token.
-# cache_path = /var/gate/object-store/cache
+# cache_path = /var/gate/swift/cache
 
-[process-server]
-# Configuration settings unique to the process server
+

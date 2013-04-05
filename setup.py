@@ -1,4 +1,6 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 # Copyright (c) 2013 Vindeka, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,13 +20,10 @@ from setuptools import setup, find_packages
 
 from gate import __canonical_version__ as version
 
-
 name = 'gate'
-
 
 with open('tools/pip-requires', 'r') as f:
     requires = [x.strip() for x in f if x.strip()]
-
 
 setup(
     name=name,
@@ -35,23 +34,17 @@ setup(
     author_email='dev@vindeka.com',
     url='http://vindeka.com',
     packages=find_packages(exclude=['bin']),
-    classifiers=[
-        'Development Status :: 1 - Planning',
-        'License :: OSI Approved :: Apache Software License',
-        'Operating System :: POSIX :: Linux',
-        'Programming Language :: Python :: 2.7',
-        'Environment :: No Input/Output (Daemon)',
-    ],
+    classifiers=['Development Status :: 1 - Planning',
+                 'License :: OSI Approved :: Apache Software License',
+                 'Operating System :: POSIX :: Linux',
+                 'Programming Language :: Python :: 2.7',
+                 'Environment :: No Input/Output (Daemon)'],
     install_requires=requires,
-    scripts=[
-        'bin/gate-init',
-        'bin/gate-engine-server',
-        'bin/gate-process-server',
-    ],
-    entry_points={
-        'gate.module_factory': [
-            'hash=gate.modules.hash:module_factory',
-            'debug=gate.modules.debug:module_factory',
-        ],
-    },
-)
+    scripts=['bin/gate-init', 'bin/gate-engine-server',
+             'bin/gate-process-server'],
+    entry_points={'gate.module_factory': ['hash=gate.modules.hash:module_factory'
+                  , 'debug=gate.modules.debug:module_factory'],
+                  'gate.transport_factory': ['memcached=gate.transports.memcached:transport_factory'
+                  , 'swift=gate.transports.swift:transport_factory']},
+    )
+

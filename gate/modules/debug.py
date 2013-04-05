@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2013 Vindeka, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +17,7 @@
 
 from gate.common.utils import get_logger
 
+
 class DebugModule(object):
 
     def __init__(self, conf):
@@ -25,10 +28,15 @@ class DebugModule(object):
         self.logger.debug('Initialising debug module')
 
     def process(self, proc, data_obj):
-        print("%d:%s %s (%s)" % (data_obj.id, data_obj.type, data_obj.name, data_obj.path))
+        print '%d:%s %s (%s)' % (data_obj.id, data_obj.type,
+                                 data_obj.name, data_obj.path)
         for attr in dir(data_obj):
-            print("\t%s: %s" % (attr, getattr(data_obj,attr)))
+            print '\t%s: %s' % (attr, getattr(data_obj, attr))
+
 
 def module_factory(conf):
     """Returns a module for use with gate."""
+
     return DebugModule(conf)
+
+

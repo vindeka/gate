@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2013 Vindeka, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,19 +20,26 @@ import os
 from gate.common.daemon import Daemon
 from gate.common.utils import get_logger
 
+
 class EngineServer(Daemon):
+
     """Broker between the queue and the database."""
 
     def __init__(self, conf):
         self.conf = conf
         self.logger = get_logger(conf, log_route='engine-server')
         self.gate_dir = conf.get('gate_dir', '/etc/gate')
-        self.amqp_connection = conf.get('amqp_connection', 'amqp://localhost/')
+        self.amqp_connection = conf.get('amqp_connection',
+                'amqp://localhost/')
 
     def run_forever(self, *args, **kwargs):
         """Run the process continuously."""
+
         pass
 
     def run_once(self, *args, **kwargs):
         """Run the process one pass."""
+
         pass
+
+

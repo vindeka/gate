@@ -36,18 +36,16 @@ class EggLoader(object):
 
 class Pipeline(object):
 
-    def __init__(self, conf_file):
+    def __init__(self, name, conf_file):
+        self.name = name
         self.objects = []
         self.inited = False
-        
         config = ConfigParser()
         config.read([ conf_file ])
-
         pipeline = config.get('pipeline:main', 'pipeline')
         for p in pipeline.split(' '):
             p = p.strip()
             use = config.get('module:%s' % p, 'use')
-
             if use.startswith('egg:'):
                 try:
                     loader = EggLoader(use)()
@@ -70,7 +68,6 @@ class Pipeline(object):
     def process(self, proc, data_obj):
         self.initialize()
         data_obj.reset()
-
         for o in self.objects:
             o.process(proc, data_obj)
             data_obj.reset()
@@ -80,7 +77,8 @@ class Pipelines(object):
     def __init__(self, dir):
         self.pipelines = {};
         for file in glob.glob(os.path.join(dir, 'pipelines.d', '*.conf')):
-            self.pipelines[os.path.splitext(os.path.basename(file))[0]] = Pipeline(file)
+            name = os.path.splitext(os.path.basename(file))[0]
+            self.pipelines[name] = Pipeline(name, file)
 
     def __len__(self):
         return len(self.pipelines)

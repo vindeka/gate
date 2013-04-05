@@ -1,0 +1,69 @@
+[DEFAULT]
+# gate_dir = /etc/gate
+# user = gate
+# You can specify default log routing here if you want:
+# log_name = gate
+# log_facility = LOG_LOCAL0
+# log_level = INFO
+# log_address = /dev/log
+# comma separated list of functions to call to setup custom log handlers.
+# functions get passed: conf, name, log_to_console, log_route, fmt, logger,
+# adapted_logger
+# log_custom_handlers =
+# If set, log_udp_host will override log_address
+# log_udp_host =
+# log_udp_port = 514
+# You can enable StatsD logging here:
+# log_statsd_host = localhost
+# log_statsd_port = 8125
+# log_statsd_default_sample_rate = 1.0
+# log_statsd_sample_rate_factor = 1.0
+# log_statsd_metric_prefix =
+
+[broker]
+# Broker connection url, used to pass messages between nodes. Multiple brokers can
+# be used seperating the connection strings with a semi-colon ";". The failover
+# strategy can also be changed for multiple connections.
+# broker_url = amqp://guest:guest@localhost:5672//
+# use_ssl = False
+# pool_limit = 10
+# connection_timeout = 5
+# failover_strategy = round-robin
+
+# Number of messages to prefetch for each worker. This should be adjusted based
+# on the load on the queue.
+# prefetch_count = 1
+
+# Data for an object can be passed around in the queue, so the resulting worker
+# does not have to request for the actual object data manually. Adjusting this
+# can speed up processing, but also can break the queue. Default 15MiB
+# object_inline_size = 15728640
+
+# Message compression can speed up data being passed along the queue,
+# especially for data objects that are large but smaller than the
+# object_inline_size.
+# compression = False
+
+[object-store]
+# Swift object store connection information. Default communication uses
+# swift proxy, setting swift_proxy to True or to the storage path will
+# allow direct communication without the proxy server.
+# enabled = False
+# auth_url = http://localhost:5000/
+# auth_user = gate
+# auth_pass = gate
+# proxy_url = None
+# retries = 4
+# swift_proxy = None
+
+# When putting objects into the storage how many threads should be
+# running at a time to upload. This is only used if object is larger
+# than the segment size. Segment size is 250MB.
+# put_threads = 5
+# segment_size = 262144000
+
+# Path to store the storage url and auth token.
+# cache_path = /var/gate/object-store/cache
+
+[process-server]
+# Configuration settings unique to the process server

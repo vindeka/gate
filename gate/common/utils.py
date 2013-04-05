@@ -607,7 +607,7 @@ class LogAdapter(logging.LoggerAdapter, object):
     timing_since = statsd_delegate('timing_since')
 
 
-class SwiftLogFormatter(logging.Formatter):
+class GateLogFormatter(logging.Formatter):
     """
     Custom logging.Formatter will append txn_id to a log message if the record
     has one and the message does not.
@@ -615,7 +615,7 @@ class SwiftLogFormatter(logging.Formatter):
 
     def format(self, record):
         if not hasattr(record, 'server'):
-            # Catch log messages that were not initiated by swift
+            # Catch log messages that were not initiated by gate
             # (for example, the keystone auth middleware)
             record.server = record.name
         msg = logging.Formatter.format(self, record)
@@ -659,13 +659,13 @@ def get_logger(conf, name=None, log_to_console=False, log_route=None,
     if not conf:
         conf = {}
     if name is None:
-        name = conf.get('log_name', 'swift')
+        name = conf.get('log_name', 'gate')
     if not log_route:
         log_route = name
     logger = logging.getLogger(log_route)
     logger.propagate = False
     # all new handlers will get the same formatter
-    formatter = SwiftLogFormatter(fmt)
+    formatter = GateLogFormatter(fmt)
 
     # get_logger will only ever add one SysLog Handler to a logger
     if not hasattr(get_logger, 'handler4logger'):
@@ -790,7 +790,6 @@ def drop_privileges(user):
     os.chdir('/')  # in case you need to rmdir on where you started the daemon
     os.umask(022)  # ensure files are created with the correct privileges
 
-
 def capture_stdio(logger, **kwargs):
     """
     Log unhandled exceptions, close stdio, capture stdout and stderr.
@@ -830,7 +829,7 @@ def capture_stdio(logger, **kwargs):
 
 def parse_options(parser=None, once=False, test_args=None):
     """
-    Parse standard swift server/daemon options with optparse.OptionParser.
+    Parse standard gate server/daemon options with optparse.OptionParser.
 
     :param parser: OptionParser to use. If not sent one will be created.
     :param once: Boolean indicating the "once" option is available
@@ -839,10 +838,12 @@ def parse_options(parser=None, once=False, test_args=None):
     :returns : Tuple of (config, options); config is an absolute path to the
                config file, options is the parser options as a dictionary.
 
-    :raises SystemExit: First arg (CONFIG) is required, file must exist
+    :raises SystemExit: config option, file must exist
     """
     if not parser:
-        parser = OptionParser(usage="%prog CONFIG [options]")
+        parser = OptionParser(usage="%prog [options]")
+    parser.add_option("-c", "--config", default=False,
+                      help="configuration file")
     parser.add_option("-v", "--verbose", default=False, action="store_true",
                       help="log to console")
     if once:
@@ -852,11 +853,11 @@ def parse_options(parser=None, once=False, test_args=None):
     # if test_args is None, optparse will use sys.argv[:1]
     options, args = parser.parse_args(args=test_args)
 
-    if not args:
-        parser.print_usage()
-        print _("Error: missing config file argument")
-        sys.exit(1)
-    config = os.path.abspath(args.pop(0))
+    config = os.path.abspath(options.config)
+    del options.config
+    if not config:
+        config = '/etc/gate/gate.conf'
+
     if not os.path.exists(config):
         parser.print_usage()
         print _("Error: unable to locate %s") % config

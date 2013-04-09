@@ -51,7 +51,7 @@ class ProcessTest(unittest.TestCase):
     def setUp(self):
         self.conf_file = readconf('test/etc/gate.conf', 'process-server')
         self.process = ProcessServer(self.conf_file)
-        self.process.logger = FakeLogger('process-server')
+        self.process.logger = FakeLogger()
         with open('test/data/opensource.svg') as fp:
             self.object_data = fp.read()
 
@@ -67,7 +67,7 @@ class ProcessTest(unittest.TestCase):
         pipelines = dict()
         pipelines['testing'] = TestPipeline('testing', test_func)
         self.assertTrue(self.process.load(force=True, pipelines=pipelines))
-        self.process.transport.logger = FakeLogger('transport:memcached')
+        self.process.transport.logger = FakeLogger()
         self.assertTrue(self.process.connect(force=True))
 
         mem_obj = MemoryDataObject(

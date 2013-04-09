@@ -4,7 +4,9 @@ A distributed forensic process system that is designed to scale from a single
 machine to thousands of servers. Gate is optimized for multi-tenancy and high
 concurrency.
 
-Gate provides a simple, REST-based API provided by gateswift middleware.
+Gate provides a simple, REST-based API for communication.
+
+[![Build Status](https://travis-ci.org/vindeka/gate.png?branch=master)](https://travis-ci.org/vindeka/gate)
 
 ## Code Organization
 
@@ -16,11 +18,14 @@ Gate provides a simple, REST-based API provided by gateswift middleware.
     * hash/: hash server
     * index/: index server
     * process/: process server
+ * test/: Unit tests
+ * tools/: Used by setuptools
 
 ## Data Flow
 
-All communication between the gateswift middleware and the processing system is
-done through worker queues (AMPQ). A work request is placed on the queue and the
+Gate is a WSGI application and uses eventlets's WSGI server. All communication
+between the WSGI application and the servers is done through worker queues
+supported by the Kombu framework. A message is placed on the queue and the
 corrisponding workers take the request, process, and respond. 
 
 ## Servers
@@ -32,27 +37,15 @@ on the work load of their system.
 ### Engine Server
 
 The engine server performs all request that will have a presistent affect on the
-information. Example: when a new file is idenitified by the process server, then
-the engine server will place this information in the Swift storage.
-
-All new requests are also handled by the engine server. When a new request is
-placed to process or verify data, then the engine server places the actual
-request for the process to begin with the process servers.
-
-### Hash Server
-
-Only action this server performs is hashing data to provide hash values for that
-data.
-
-### Index Server
-
-Only action this server performs is indexing data. When a file is identified,
-then its content is indexed by this server.
+information. Example: when a new file is submitted for processing then the
+engine server will handle the request, update the database, and submit the file
+for processing.
 
 ### Process Server
 
 This server analyzes all of the data through a pipeline. As the data passes
-through the pipeline, information is built for the file. If more files are found
-when processing the file, then those files are published on the queue to be
-processed with the same pipeline as its parent file.
+through the pipeline, meta data is built for the file. Once finished processing
+the meta data is pased off to the engine server to save to the database. If more
+files are found when processing the file, then those files are published on the
+queue to be processed with the same pipeline as its parent file.
 

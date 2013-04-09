@@ -5,7 +5,6 @@ python:
 services:
   - rabbitmq
   - memcached
-install:
-  - "pip install . --use-mirrors"
-  - "pip install -r tools/test-requires --use-mirrors"
-script: nosetests
+install: "pip install -r tools/test-requires --use-mirrors"
+before_script: "python setup.py develop"
+script: "python setup.py nosetests"

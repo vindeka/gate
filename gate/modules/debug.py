@@ -28,10 +28,10 @@ class DebugModule(object):
         self.logger.debug('Initialising debug module')
 
     def process(self, proc, data_obj):
-        print '%d:%s %s (%s)' % (data_obj.id, data_obj.type,
-                                 data_obj.name, data_obj.path)
-        for attr in dir(data_obj):
-            print '\t%s: %s' % (attr, getattr(data_obj, attr))
+        print '%d:%s %s (%s)' % (data_obj.id, data_obj.get('type'),
+                                 data_obj.get('name'), data_obj.get('path'))
+        for key in data_obj.iterkeys():
+            print '\t%s: %s' % (key, data_obj.get(key))
 
 
 def module_factory(conf):

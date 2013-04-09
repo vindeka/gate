@@ -44,10 +44,10 @@ class HashModule(object):
 
     def process(self, proc, data_obj):
         for algo in self.algos:
-            attr = 'hash-%s' % algo
-            if not hasattr(data_obj, attr):
+            key = 'hash-%s' % algo
+            if not data_obj.has_key(key):
                 method = getattr(self, algo)
-                setattr(data_obj, attr, method(data_obj))
+                data_obj.set(key, method(data_obj))
                 data_obj.reset()
 
     def md5(self, data_obj):

@@ -63,26 +63,9 @@ class Pipeline(object):
             o.process(proc, data_obj)
             data_obj.reset()
 
-
-class Pipelines(object):
-
-    def __init__(self, dir):
-        self.pipelines = {}
-        for file in glob.glob(os.path.join(dir, 'pipelines.d', '*.conf'
-                              )):
-            name = os.path.splitext(os.path.basename(file))[0]
-            self.pipelines[name] = Pipeline(name, file)
-
-    def __len__(self):
-        return len(self.pipelines)
-
-    def __getitem__(self, name):
-        return self.get(name)
-
-    def get(self, name):
-        try:
-            return self.pipelines[name]
-        except:
-            return None
-
-
+def load_pipelines(dir):
+    pipelines = dict()
+    for file in glob.glob(os.path.join(dir, 'pipelines.d', '*.conf')):
+        name = os.path.splitext(os.path.basename(file))[0]
+        pipelines[name] = Pipeline(name, file)
+    return pipelines

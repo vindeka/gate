@@ -30,51 +30,37 @@ class DataObject(object):
     attributes and the data for the given object.
     """
 
-    def __init__(
-        self,
-        app,
-        case_id,
-        id,
-        type,
-        name,
-        path,
-        attrs=None,
-        ):
-        self._app = app
-        self.__dict__['attrs'] = {
-            'case_id': case_id,
-            'id': id,
-            'type': type,
-            'name': name,
-            'path': path,
-            }
-        if attrs is not None:
-            self.__dict__['attrs'].update(attrs)
+    def __init__(self, id, app, **kwargs):
+        self.id = id
+        self.app = app
+        self.attrs = kwargs
+        self.exceptions = list()
 
-    def __getattr__(self, name):
-        v = self.__dict__['attrs'].get(name)
-        if not v:
-            raise AttributeError
-        return v
+    def get(self, key, default = None):
+        if key is 'id':
+            return self.id
+        return self.attrs.get(key, default)
 
-    def __setattr__(self, name, value):
-        self.__dict__['attrs'][name] = value
+    def set(self, key, value):
+        self.attrs[key] = value
 
-    def __delattr__(self, name):
-        del self.__dict__['attrs'][name]
+    def unset(self, key):
+        del self.attrs[key]
 
-    def __dir__(self):
-        keys = []
-        for k in self.__dict__['attrs'].keys():
-            if not k.startswith('_'):
-                keys.append(k)
-        return keys
+    def has_key(self, key):
+        return self.attrs.has_key(key)
 
-    def __len__(self):
-        return self.size()
+    def keys(self):
+        return self.attrs.keys()
 
-    def fileno(self):
-        return self['id']
+    def iterkeys(self):
+        return self.attrs.iterkeys()
+
+    def items(self):
+        return self.attrs.items()
+
+    def iteritems(self):
+        return self.attrs.iteritems()
 
     def size(self):
         size = None
@@ -83,9 +69,6 @@ class DataObject(object):
         except:
             pass
         return size
-
-    def copy(self):
-        raise NotImplementedError
 
     def next(self):
         raise NotImplementedError
@@ -123,8 +106,16 @@ class DataObject(object):
     def readbytes(self, size=None):
         return numpy.fromstring(self.read(size), dtype='uint8')
 
-    def _close(self):
+    def close(self):
         pass
+
+    def pack(self):
+        """ Called before object is pushed to the queue. """
+        self.app = None
+
+    def unpack(self, app):
+        """ Called after object is pulled from the queue. """
+        self.app = app
 
 
 class MemoryDataObject(DataObject):
@@ -134,42 +125,10 @@ class MemoryDataObject(DataObject):
     file pointer is used.
     """
 
-    def __init__(
-        self,
-        app,
-        case_id,
-        id,
-        type,
-        name,
-        path,
-        data,
-        attrs=None,
-        ):
-        super(MemoryDataObject, self).__init__(
-            app,
-            case_id,
-            id,
-            type,
-            name,
-            path,
-            attrs,
-            )
-
+    def __init__(self, id, app, data = None, **kwargs):
         self._data = data
         self._offset = 0
-
-    def copy(self):
-        c = MemoryDataObject(
-            self.case_id,
-            self.id,
-            self.type,
-            self.name,
-            self.path,
-            self._data.copy(),
-            )
-        for key in dir(self):
-            setattr(c, key, getattr(self, key))
-        return c
+        super(MemoryDataObject, self).__init__(id, app, **kwargs)
 
     def size(self):
         if not self._data:
@@ -208,113 +167,119 @@ class MemoryDataObject(DataObject):
     def reset(self):
         self._offset = 0
 
-    def _close(self):
+    def pack(self):
         self.reset()
+        self.app = None
 
+    def unpack(self, app):
+        self.reset()
+        self.app = app
 
-class URLDataObject(DataObject):
-
+class FileDataObject(DataObject):
     """
-    Object reads the data either locally or transfers the file from an object
-    store to a temp location. Protocol support is below:
-
-        local: Reads the file from a local path
-            ex: local:/tmp/file
-        swift: Loads the data form a swift object store.
-            ex: swift:container/object
+    Object reads the data for the object directly from disk. This is normally
+    used for large files, where it is better to cache to disk.
     """
 
-    def __init__(
-        self,
-        app,
-        case_id,
-        id,
-        type,
-        name,
-        path,
-        url,
-        opt_attrs=None,
-        ):
-        super(URLDataObject, self).__init__(
-            app,
-            case_id,
-            id,
-            type,
-            name,
-            path,
-            opt_attrs,
-            )
-
-        self._url = url
+    def __init__(self, id, app, path, **kwargs):
+        self._path = path
         self._fp = None
-        self._temp_path = None
+        super(FileDataObject, self).__init__(id, app, **kwargs)
 
     def _open(self):
-        if self._fp:
-            return
-
-        (url_type, path) = self._url_type()
-        if url_type == 'local':
-            self._fp = open(path, 'rb')
-        elif url_type == 'swift':
-            if not self._temp_path:
-                self._temp_path = tempfile.mkstemp(prefix='gu')
-                self._download(self._temp_path)
-            self._fp = open(self._temp_path, 'rb')
+        if not self._fp:
+            self._fp = open(self._path, 'rb')
 
     def _close(self):
         if self._fp:
             self._fp.close()
             self._fp = None
-        if self._temp_path:
-            os.remove(self._temp_path)
-            self._temp_path = None
+
+    def next(self):
+        self._open()
+        return self._fp.next()
+
+    def read(self, size = None):
+        self._open()
+        if not size:
+            return self._fp.read()
+        return self._fp.read(size)
+
+    def readline(self, size = None):
+        self._open()
+        if not size:
+            return self._fp.readline()
+        return self._fp.readline(size)
+
+    def readlines(self, sizehint = None):
+        self._open()
+        if not sizehint:
+            return self._fp.readlines()
+        return self._fp.readlines(sizehint)
+
+    def seek(self, offset, whence = 0):
+        self._open()
+        return self._fp.seek(offset, whence)
+
+    def tell(self):
+        self._open()
+        return self._fp.tell()
+
+    def reset(self):
+        self._open()
+        self._fp.seek(0, 0)
+
+    def pack(self):
+        self._close()
+        self.app = None
+
+    def unpack(self, app):
+        self.app = app
+        self._open()
+
+
+class URLDataObject(DataObject):
+
+    """
+    Object reads the data from url to temp file before read the data.
+    """
+
+    def __init__(self, id, app, url = None, **kwargs):
+        self._url = url
+        self._fp = None
+        self._temp_path = None
+
+        super(URLDataObject, self).__init__(id, app, **kwargs)
+
+    def _open(self):
+        """
+        Opens the temp file for reading, calls download if not downloaded
+        form large object transport.
+        """
+
+        if self._fp:
+            return
+        if not self._temp_path:
+            self._temp_path = tempfile.mkstemp(prefix='glrg')
+            self._download(self._temp_path)
+        self._fp = open(self._temp_path, 'rb')
 
     def _download(self, path):
         """
-        Downloads the large object from the swift url into the provided path.
-
-            swift: Loads the data from a swift object store. Configuration needs to set
-                   to provide url, tenant, account, password for the swift storage; this
-                   information is not passed around.
-                ex: swift:container/object
-            local: Does nothing as file already exists locally.
+        Downloads the large object from the large object transport into the provided path.
         """
 
-        if not self._url.startswith('swift:'):
-            raise Exception('URL object downloading currently only supports swift object store.'
-                            )
-
-        url = self._url.replace('swift:', '')
-        (container, obj) = url.split('/', maxsplit=1)
-        if not container or not obj:
-            raise Exception('Invalid swift url given: %s', url)
-
-        (status, reason, headers, stream) = \
-            get_object_stream(container, obj)
-        if status != 200:
-            raise Exception('Failed to read object from storage: (%d) %s %s'
-                            , status, reason, url)
-
+        transport, key = self._url.split(':', limit = 1)
+        if self.app.server.transport.name is not transport:
+            raise Exception('Transport type not configured.')
+        transport = self.app.server.transport
+        stream = transport.get_stream(key)
         fp = open(self._temp_path, 'wb')
         while True:
             data = stream.read(4096)
             if data:
                 fp.write(data)
         fp.close()
-
-    def copy(self):
-        c = URLDataObject(
-            self.case_id,
-            self.id,
-            self.type,
-            self.name,
-            self.path,
-            self._url,
-            )
-        for key in dir(self):
-            setattr(c, key, getattr(self, key))
-        return c
 
     def size(self):
         loc = self.tell()
@@ -356,5 +321,19 @@ class URLDataObject(DataObject):
     def reset(self):
         self._open()
         self._fp.seek(0, 0)
+
+    def pack(self):
+        if self._fp:
+            self._fp.close()
+            self._fp = None
+        if self._temp_path:
+            if os.path.exists(self._temp_path):
+                os.remove(self._temp_path)
+            self._temp_path = None
+        self.app = None
+
+    def unpack(self, app):
+        self.app = app
+        self._open()
 
 

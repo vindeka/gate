@@ -108,7 +108,7 @@ class MemcachedTransport(object):
         return True
 
     def close(self):
-        self.client.close()
+        self.client.disconnect_all()
         self.logger.debug('Connection closed.')
 
     def get_stream(self, key):

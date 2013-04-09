@@ -26,7 +26,6 @@
 # strategy can also be changed for multiple connections.
 # broker_url = amqp://guest:guest@localhost:5672//
 # use_ssl = False
-# pool_limit = 10
 # connection_timeout = 5
 # failover_strategy = round-robin
 

@@ -33,7 +33,8 @@ setup(
     author='Vindeka, LLC.',
     author_email='dev@vindeka.com',
     url='http://vindeka.com',
-    packages=find_packages(exclude=['bin']),
+    packages=find_packages(exclude=['test', 'bin']),
+    test_suite='nose.collector',
     classifiers=['Development Status :: 1 - Planning',
                  'License :: OSI Approved :: Apache Software License',
                  'Operating System :: POSIX :: Linux',
@@ -42,9 +43,15 @@ setup(
     install_requires=requires,
     scripts=['bin/gate-init', 'bin/gate-engine-server',
              'bin/gate-process-server'],
-    entry_points={'gate.module_factory': ['hash=gate.modules.hash:module_factory'
-                  , 'debug=gate.modules.debug:module_factory'],
-                  'gate.transport_factory': ['memcached=gate.transports.memcached:transport_factory'
-                  , 'swift=gate.transports.swift:transport_factory']},
-    )
+    entry_points={
+        'gate.module_factory': [
+            'hash=gate.modules.hash:module_factory',
+            'debug=gate.modules.debug:module_factory'
+        ],
+        'gate.transport_factory': [
+            'memcached=gate.transports.memcached:transport_factory',
+            'swift=gate.transports.swift:transport_factory'
+        ]
+    },
+)
 

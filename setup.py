@@ -38,7 +38,7 @@ setup(
     classifiers=['Development Status :: 1 - Planning',
                  'License :: OSI Approved :: Apache Software License',
                  'Operating System :: POSIX :: Linux',
-                 'Programming Language :: Python :: 2.7',
+                 'Programming Language :: Python :: 2.6',
                  'Environment :: No Input/Output (Daemon)'],
     install_requires=requires,
     scripts=['bin/gate-init', 'bin/gate-engine-server',

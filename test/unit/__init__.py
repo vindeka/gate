@@ -20,7 +20,8 @@ from collections import defaultdict
 class FakeLogger(object):
     # a thread safe logger
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, name=None, *args, **kwargs):
+        self.log = logging.getLogger(name or "FakeLogger")
         self._clear()
         self.level = logging.NOTSET
         if 'facility' in kwargs:
@@ -32,6 +33,9 @@ class FakeLogger(object):
     def _store_in(store_name):
         def stub_fn(self, *args, **kwargs):
             self.log_dict[store_name].append((args, kwargs))
+            if hasattr(self.log, store_name):
+                func = getattr(self.log, store_name)
+                func(args)
         return stub_fn
 
     error = _store_in('error')

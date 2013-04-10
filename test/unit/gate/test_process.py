@@ -1,5 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2013 Vindeka, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,27 +22,7 @@ import logging
 from gate.process import ProcessServer
 from gate.common.utils import readconf
 from gate.common.objs import MemoryDataObject
-from gate.common.pipeline import Pipeline
-from test.unit import FakeLogger
-
-class TestModule(object):
-
-    def __init__(self, func):
-        self.func = func
-
-    def __call__(self):
-        pass
-
-    def process(self, proc, data_obj):
-        self.func(proc, data_obj)
-
-class TestPipeline(Pipeline):
-
-    def __init__(self, name, func):
-        self.name = name
-        self.objects = []
-        self.inited = False
-        self.objects.append(TestModule(func))
+from test import FakeLogger, FakePipeline, FakeModule
 
 class ProcessTest(unittest.TestCase):
 
@@ -65,7 +43,7 @@ class ProcessTest(unittest.TestCase):
             self.data_obj = data_obj
 
         pipelines = dict()
-        pipelines['testing'] = TestPipeline('testing', test_func)
+        pipelines['testing'] = FakePipeline('testing', test_func)
         self.assertTrue(self.process.load(force=True, pipelines=pipelines))
         self.process.transport.logger = FakeLogger()
         self.assertTrue(self.process.connect(force=True))
@@ -121,7 +99,7 @@ class ProcessTest(unittest.TestCase):
             self.offset += 1
 
         pipelines = dict()
-        pipelines['testing'] = TestPipeline('testing', test_func)
+        pipelines['testing'] = FakePipeline('testing', test_func)
         self.assertTrue(self.process.load(force=True, pipelines=pipelines))
         self.process.transport.logger = FakeLogger()
         self.assertTrue(self.process.connect(force=True))
@@ -181,6 +159,46 @@ class ProcessTest(unittest.TestCase):
 
     def test_broker_multi_four_compress(self):
         self._broker_multi(4, compress='snappy')
+
+    def test_pipeline(self):
+        data = self.object_data[:]
+        def test_func(proc, data_obj):
+            self.data_one = data_obj.read()
+        def test_func2(proc, data_obj):
+            self.data_two = data_obj.read()
+
+        pipelines = dict()
+        pipe = FakePipeline('testing')
+        pipe.add_module(FakeModule(test_func))
+        pipe.add_module(FakeModule(test_func2))
+        pipelines['testing'] = pipe
+        self.assertTrue(self.process.load(force=True, pipelines=pipelines))
+        self.process.transport.logger = FakeLogger()
+        self.assertTrue(self.process.connect(force=True))
+
+        mem_obj = MemoryDataObject(
+            uuid.uuid4(),
+            None,
+            self.object_data,
+            case_id=uuid.uuid4(),
+            name='opensource.svg',
+            path='/opensource.svg',
+            parent_id=uuid.uuid4(),
+            type='file',
+            )
+        conn = self.process.connection
+        with conn.Producer(serializer='pickle',
+                           compression=None) as producer:
+            producer.publish(mem_obj, exchange=self.process.exchange,
+                routing_key='gate.process', declare=[self.process.queue],
+                headers={'pipeline':'testing'})
+        self.process.run_once()
+        self.process.close()
+
+        self.assertTrue(self.data_one)
+        self.assertTrue(self.data_two)
+        self.assertEqual(data, self.data_one)
+        self.assertEqual(data, self.data_two)
 
 if __name__ == '__main__':
     unittest.main()

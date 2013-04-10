@@ -55,7 +55,8 @@ class ProcessTest(unittest.TestCase):
         with open('test/data/opensource.svg') as fp:
             self.object_data = fp.read()
 
-    def test_broker_memory_object(self):
+
+    def _broker_mem_obj(self, compress=None):
         self.data_obj = None
         obj_id = uuid.uuid4()
         case_id = uuid.uuid4()
@@ -82,7 +83,7 @@ class ProcessTest(unittest.TestCase):
             )
         conn = self.process.connection
         with conn.Producer(serializer='pickle',
-                           compression=None) as producer:
+                           compression=compress) as producer:
             producer.publish(mem_obj, exchange=self.process.exchange,
                 routing_key='gate.process', declare=[self.process.queue],
                 headers={'pipeline':'testing'})
@@ -97,6 +98,12 @@ class ProcessTest(unittest.TestCase):
         self.assertEqual(parent_id, self.data_obj.get('parent_id'))
         self.assertEqual('file', self.data_obj.get('type'))
         self.assertEqual(data, self.data_obj.read())
+
+    def test_broker_mem_obj(self):
+        self._broker_mem_obj()
+
+    def test_broker_mem_obj_compress(self):
+        self._broker_mem_obj(compress='snappy')
 
 if __name__ == '__main__':
     unittest.main()

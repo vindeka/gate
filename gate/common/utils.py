@@ -23,6 +23,8 @@ import os
 import pwd
 import sys
 import time
+import kombu
+import snappy
 import functools
 import pkg_resources
 from hashlib import md5
@@ -1044,140 +1046,6 @@ def whataremyips():
     return addresses
 
 
-def storage_directory(datadir, partition, hash):
-    """
-    Get the storage directory
-
-    :param datadir: Base data directory
-    :param partition: Partition
-    :param hash: Account, container or object hash
-    :returns: Storage directory
-    """
-
-    return os.path.join(datadir, str(partition), hash[-3:], hash)
-
-
-def hash_path(
-    account,
-    container=None,
-    object=None,
-    raw_digest=False,
-    ):
-    """
-    Get the connonical hash for an account/container/object
-
-    :param account: Account
-    :param container: Container
-    :param object: Object
-    :param raw_digest: If True, return the raw version rather than a hex digest
-    :returns: hash string
-    """
-
-    if object and not container:
-        raise ValueError('container is required if object is provided')
-    paths = [account]
-    if container:
-        paths.append(container)
-    if object:
-        paths.append(object)
-    if raw_digest:
-        return md5('/' + '/'.join(paths) + HASH_PATH_SUFFIX).digest()
-    else:
-        return md5('/' + '/'.join(paths) + HASH_PATH_SUFFIX).hexdigest()
-
-
-@contextmanager
-def lock_path(directory, timeout=10):
-    """
-    Context manager that acquires a lock on a directory.  This will block until
-    the lock can be acquired, or the timeout time has expired (whichever occurs
-    first).
-
-    For locking exclusively, file or directory has to be opened in Write mode.
-    Python doesn't allow directories to be opened in Write Mode. So we
-    workaround by locking a hidden file in the directory.
-
-    :param directory: directory to be locked
-    :param timeout: timeout (in seconds)
-    """
-
-    mkdirs(directory)
-    lockpath = '%s/.lock' % directory
-    fd = os.open(lockpath, os.O_WRONLY | os.O_CREAT)
-    try:
-        with LockTimeout(timeout, lockpath):
-            while True:
-                try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except IOError, err:
-                    if err.errno != errno.EAGAIN:
-                        raise
-                sleep(0.01)
-        yield True
-    finally:
-        os.close(fd)
-
-
-@contextmanager
-def lock_file(
-    filename,
-    timeout=10,
-    append=False,
-    unlink=True,
-    ):
-    """
-    Context manager that acquires a lock on a file.  This will block until
-    the lock can be acquired, or the timeout time has expired (whichever occurs
-    first).
-
-    :param filename: file to be locked
-    :param timeout: timeout (in seconds)
-    :param append: True if file should be opened in append mode
-    :param unlink: True if the file should be unlinked at the end
-    """
-
-    flags = os.O_CREAT | os.O_RDWR
-    if append:
-        flags |= os.O_APPEND
-        mode = 'a+'
-    else:
-        mode = 'r+'
-    fd = os.open(filename, flags)
-    file_obj = os.fdopen(fd, mode)
-    try:
-        with LockTimeout(timeout, filename):
-            while True:
-                try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except IOError, err:
-                    if err.errno != errno.EAGAIN:
-                        raise
-                sleep(0.01)
-        yield file_obj
-    finally:
-        try:
-            file_obj.close()
-        except UnboundLocalError:
-            pass  # may have not actually opened the file
-        if unlink:
-            os.unlink(filename)
-
-
-def lock_parent_directory(filename, timeout=10):
-    """
-    Context manager that acquires a lock on the parent directory of the given
-    file path.  This will block until the lock can be acquired, or the timeout
-    time has expired (whichever occurs first).
-
-    :param filename: file path of the parent directory to be locked
-    :param timeout: timeout (in seconds)
-    """
-
-    return lock_path(os.path.dirname(filename), timeout=timeout)
-
-
 def get_time_units(time_amount):
     """
     Get a nomralized length of time in the largest unit of time (hours,
@@ -1212,34 +1080,6 @@ def compute_eta(start_time, current_value, final_value):
     elapsed = time.time() - start_time
     completion = float(current_value) / final_value or 0.00001
     return get_time_units(1.0 / completion * elapsed - elapsed)
-
-
-def iter_devices_partitions(devices_dir, item_type):
-    """
-    Iterate over partitions across all devices.
-
-    :param devices_dir: Path to devices
-    :param item_type: One of 'accounts', 'containers', or 'objects'
-    :returns: Each iteration returns a tuple of (device, partition)
-    """
-
-    devices = listdir(devices_dir)
-    shuffle(devices)
-    devices_partitions = []
-    for device in devices:
-        partitions = listdir(os.path.join(devices_dir, device,
-                             item_type))
-        shuffle(partitions)
-        devices_partitions.append((device, iter(partitions)))
-    yielded = True
-    while yielded:
-        yielded = False
-        for (device, partitions) in devices_partitions:
-            try:
-                yield (device, partitions.next())
-                yielded = True
-            except StopIteration:
-                pass
 
 
 def unlink_older_than(path, mtime):
@@ -1835,4 +1675,7 @@ class InputProxy(object):
         self.bytes_received += len(line)
         return line
 
-
+kombu.compression.register(snappy.compress,
+                          snappy.decompress,
+                          'application/x-snappy',
+                          aliases=['snappy'])

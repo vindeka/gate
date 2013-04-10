@@ -1,2 +1,3 @@
 .DS_Ignore
 *.pyc
+gate.egg-info

@@ -55,7 +55,6 @@ class ProcessTest(unittest.TestCase):
         with open('test/data/opensource.svg') as fp:
             self.object_data = fp.read()
 
-
     def _broker_mem_obj(self, compress=None):
         self.data_obj = None
         obj_id = uuid.uuid4()
@@ -104,6 +103,84 @@ class ProcessTest(unittest.TestCase):
 
     def test_broker_mem_obj_compress(self):
         self._broker_mem_obj(compress='snappy')
+
+    def _broker_multi(self, count, compress=None):
+        self.objs = dict()
+        for i in range(count):
+            d = dict()
+            d['obj_id'] = uuid.uuid4()
+            d['case_id'] = uuid.uuid4()
+            d['parent_id'] = uuid.uuid4()
+            d['data'] = self.object_data[:] + str(count)
+            self.objs[i] = d
+
+        self.offset = 0
+        self.test_objs = dict()
+        def test_func(proc, data_obj):
+            self.test_objs[self.offset] = data_obj
+            self.offset += 1
+
+        pipelines = dict()
+        pipelines['testing'] = TestPipeline('testing', test_func)
+        self.assertTrue(self.process.load(force=True, pipelines=pipelines))
+        self.process.transport.logger = FakeLogger()
+        self.assertTrue(self.process.connect(force=True))
+
+        conn = self.process.connection
+        with conn.Producer(serializer='pickle',
+                           compression=compress) as producer:
+            for i in range(count):
+                obj = self.objs[i]
+                mem_obj = MemoryDataObject(
+                    obj['obj_id'],
+                    None,
+                    obj['data'],
+                    case_id=obj['case_id'],
+                    name='opensource.svg',
+                    path='/opensource.svg',
+                    parent_id=obj['parent_id'],
+                    type='file',
+                    )
+                producer.publish(mem_obj, exchange=self.process.exchange,
+                    routing_key='gate.process', declare=[self.process.queue],
+                    headers={'pipeline':'testing'})
+        for _ in range(count):
+            self.process.run_once()
+        self.process.close()
+
+        for i in range(count):
+            obj = self.objs[i]
+            test_obj = None
+            for o in self.test_objs.values():
+                if o.id == obj['obj_id']:
+                    test_obj = o
+                    break
+            self.assertTrue(test_obj)
+            self.assertEqual(obj['obj_id'], test_obj.id)
+            self.assertEqual(obj['case_id'], test_obj.get('case_id'))
+            self.assertEqual('opensource.svg', test_obj.get('name'))
+            self.assertEqual('/opensource.svg', test_obj.get('path'))
+            self.assertEqual(obj['parent_id'], test_obj.get('parent_id'))
+            self.assertEqual('file', test_obj.get('type'))
+            self.assertEqual(obj['data'], test_obj.read())
+
+    def test_broker_multi_two(self):
+        self._broker_multi(2)
+
+    def test_broker_multi_three(self):
+        self._broker_multi(3)
+
+    def test_broker_multi_four(self):
+        self._broker_multi(4)
+
+    def test_broker_multi_two_compress(self):
+        self._broker_multi(2, compress='snappy')
+
+    def test_broker_multi_three_compress(self):
+        self._broker_multi(3, compress='snappy')
+
+    def test_broker_multi_four_compress(self):
+        self._broker_multi(4, compress='snappy')
 
 if __name__ == '__main__':
     unittest.main()

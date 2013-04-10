@@ -247,6 +247,7 @@ class ProcessServer(Daemon):
         if self.connected:
             self.transport.close()
             self.connection.close()
+            self.connected = False
 
     def run_forever(self, *args, **kwargs):
         """Run the process continuously."""

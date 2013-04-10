@@ -74,7 +74,7 @@ _posix_fadvise = None
 # available being at or below this amount, in bytes.
 
 FALLOCATE_RESERVE = 0
-
+    
 # Used when reading config values
 
 TRUE_VALUES = set((
@@ -152,7 +152,6 @@ def get_param(req, name, default=None):
     if value and not isinstance(value, unicode):
         value.decode('utf8')  # Ensure UTF8ness
     return value
-
 
 class FallocateWrapper(object):
 
@@ -328,6 +327,69 @@ def renamer(old, new):
         mkdirs(os.path.dirname(new))
         os.rename(old, new)
 
+def check_utf8(string):
+    """
+    Validate if a string is valid UTF-8 str or unicode and that it
+    does not contain any null character.
+
+    :param string: string to be validated
+    :returns: True if the string is valid utf-8 str or unicode and
+              contains no null characters, False otherwise
+    """
+    if not string:
+        return False
+    try:
+        if isinstance(string, unicode):
+            string.encode('utf-8')
+        else:
+            string.decode('UTF-8')
+        return '\x00' not in string
+    # If string is unicode, decode() will raise UnicodeEncodeError
+    # So, we should catch both UnicodeDecodeError & UnicodeEncodeError
+    except UnicodeError:
+        return False
+
+def check_metadata(req, target_type):
+    """
+    Check metadata sent in the request headers.
+
+    :param req: request object
+    :param target_type: str: one of: object, container, or account: indicates
+                        which type the target storage for the metadata is
+    :returns: HTTPBadRequest with bad metadata otherwise None
+    """
+    prefix = 'x-%s-meta-' % target_type.lower()
+    meta_count = 0
+    meta_size = 0
+    for key, value in req.headers.iteritems():
+        if isinstance(value, basestring) and len(value) > MAX_HEADER_SIZE:
+            return HTTPBadRequest('Header Line Too Long')
+        if not key.lower().startswith(prefix):
+            continue
+        key = key[len(prefix):]
+        if not key:
+            return HTTPBadRequest(body='Metadata name cannot be empty',
+                                  request=req, content_type='text/plain')
+        meta_count += 1
+        meta_size += len(key) + len(value)
+        if len(key) > MAX_META_NAME_LENGTH:
+            return HTTPBadRequest(
+                body='Metadata name too long; max %d' % MAX_META_NAME_LENGTH,
+                request=req, content_type='text/plain')
+        elif len(value) > MAX_META_VALUE_LENGTH:
+            return HTTPBadRequest(
+                body='Metadata value too long; max %d' % MAX_META_VALUE_LENGTH,
+                request=req, content_type='text/plain')
+        elif meta_count > MAX_META_COUNT:
+            return HTTPBadRequest(
+                body='Too many metadata items; max %d' % MAX_META_COUNT,
+                request=req, content_type='text/plain')
+        elif meta_size > MAX_META_OVERALL_SIZE:
+            return HTTPBadRequest(
+                body='Total metadata too large; max %d'
+                % MAX_META_OVERALL_SIZE,
+                request=req, content_type='text/plain')
+    return None
 
 def split_path(
     path,
@@ -526,7 +588,7 @@ class StatsdClient(object):
 def timing_stats(**dec_kwargs):
     """
     Returns a decorator that logs timing events or errors for public methods in
-    swift's wsgi server controllers, based on response code.
+    gate's wsgi server controllers, based on response code.
     """
 
     def decorating_func(func):
@@ -741,7 +803,7 @@ def get_logger(
 
         log_facility = LOG_LOCAL0
         log_level = INFO
-        log_name = swift
+        log_name = gate
         log_udp_host = (disabled)
         log_udp_port = logging.handlers.SYSLOG_UDP_PORT
         log_address = /dev/log
@@ -985,9 +1047,7 @@ def parse_options(parser=None, once=False, test_args=None):
     """
 
     if not parser:
-        parser = OptionParser(usage='%prog [options]')
-    parser.add_option('-c', '--config', default=False,
-                      help='configuration file')
+        parser = OptionParser(usage='%prog CONFIG [options]')
     parser.add_option('-v', '--verbose', default=False,
                       action='store_true', help='log to console')
     if once:
@@ -996,14 +1056,13 @@ def parse_options(parser=None, once=False, test_args=None):
                           help='only run one pass of daemon')
 
     # if test_args is None, optparse will use sys.argv[:1]
+    options, args = parser.parse_args(args=test_args)
 
-    (options, args) = parser.parse_args(args=test_args)
-    config = options.config
-    del options.config
-    if not config:
-        config = '/etc/gate/gate.conf'
-    config = os.path.abspath(config)
-
+    if not args:
+        parser.print_usage()
+        print _("Error: missing config file argument")
+        sys.exit(1)
+    config = os.path.abspath(args.pop(0))
     if not os.path.exists(config):
         parser.print_usage()
         print _('Error: unable to locate %s') % config
@@ -1116,19 +1175,6 @@ def item_from_env(env, item_name):
         logging.error('ERROR: %s could not be found in env!'
                       % item_name)
     return item
-
-
-def cache_from_env(env):
-    """
-    Get memcache connection pool from the environment (which had been
-    previously set by the memcache middleware
-
-    :param env: wsgi environment dict
-
-    :returns: swift.common.memcached.MemcacheRing from environment
-    """
-
-    return item_from_env(env, 'swift.cache')
 
 
 def readconf(
@@ -1676,5 +1722,11 @@ class InputProxy(object):
         self.bytes_received += len(line)
         return line
 
+# Main configuration file that holds the configuration for broker
+# and database
+BROKER_CONF = readconf(os.getenv('GATE_CONFIG',
+    '/etc/gate/gate.conf'), 'broker')
+
+# Register the snappy compression with kombu
 kc_register(snappy.compress, snappy.decompress,
             'application/x-snappy', aliases=['snappy'])

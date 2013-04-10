@@ -27,7 +27,7 @@ from test import FakeLogger, FakePipeline, FakeModule
 class ProcessTest(unittest.TestCase):
 
     def setUp(self):
-        self.conf_file = readconf('test/etc/gate.conf', 'process-server')
+        self.conf_file = readconf('test/etc/process-server.conf', 'process-server')
         self.process = ProcessServer(self.conf_file)
         self.process.logger = FakeLogger()
         with open('test/data/opensource.svg') as fp:

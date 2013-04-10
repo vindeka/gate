@@ -42,7 +42,7 @@ setup(
                  'Environment :: No Input/Output (Daemon)'],
     install_requires=requires,
     scripts=['bin/gate-init', 'bin/gate-engine-server',
-             'bin/gate-process-server'],
+             'bin/gate-process-server', 'bin/gate-api-server'],
     entry_points={
         'gate.module_factory': [
             'hash=gate.modules.hash:module_factory',
@@ -51,7 +51,10 @@ setup(
         'gate.transport_factory': [
             'memcached=gate.transports.memcached:transport_factory',
             'swift=gate.transports.swift:transport_factory'
-        ]
+        ],
+        'paste.app_factory': [
+            'api=gate.api:app_factory'
+        ],
     },
 )
 

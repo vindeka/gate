@@ -8,3 +8,5 @@ swiftly>=1.6
 python-memcached
 numpy
 python-snappy
+paste
+pastedeploy

@@ -13,12 +13,14 @@ Gate provides a simple, REST-based API for communication.
  * bin/: Executable scripts that are the processes run by the deployer
  * etc/: Sample config files
  * gate/: Core code
-    * common/: code shared by different modules
-    * engine/: engine server
-    * hash/: hash server
-    * index/: index server
-    * process/: process server
- * test/: Unit tests
+    * common/: Code shared by different modules
+    * controllers/: Api controllers
+    * modules/:  Pipeline modules
+    * transports/: Large object transports
+ * test/: Testing items
+    * data/: Testing data
+    * etc/: Testing configurations
+    * unit/: Unit tests
  * tools/: Used by setuptools
 
 ## Data Flow
@@ -26,7 +28,38 @@ Gate provides a simple, REST-based API for communication.
 Gate is a WSGI application and uses eventlets's WSGI server. All communication
 between the WSGI application and the servers is done through worker queues
 supported by the Kombu framework. A message is placed on the queue and the
-corrisponding workers take the request, process, and respond. 
+corrisponding workers take the request, process, and respond.
+
+## REST API
+
+Gate provides a REST-based API for communication. Communication requires the
+auth token provided by Keystone, be set in the request: X-Auth-Token.
+
+### Case API
+
+  * HEAD: /v1/case - Information about case
+  * GET:  /v1/case - List of evidence in case
+  * PUT:  /v1/case - Create a case
+  * POST: /v1/case - Update case information
+
+### Evidence API
+
+  * HEAD: /v1/case/evidence - Information about evidence
+  * GET:  /v1/case/evidence - List of objects in evidence
+  * PUT:  /v1/case/evidence - Add evidence to case
+  * POST: /v1/case/evidenec - Update case information
+
+### Object API
+
+  * HEAD: /v1/case/evidence/object - Information about object
+  * GET:  /v1/case/evidence/object - Download evidence data
+  * PUT:  /v1/case/evidence/object - Add object to evidence (marked)
+  * POST: /v1/case/evidence/object - Update object information
+
+### Search API
+
+  * GET:  /v1/case/?search=query - Search all evidence
+  * GET:  /v1/case/evidence/?search=query - Search this evidence
 
 ## Servers
 

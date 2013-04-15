@@ -1722,11 +1722,6 @@ class InputProxy(object):
         self.bytes_received += len(line)
         return line
 
-# Main configuration file that holds the configuration for broker
-# and database
-BROKER_CONF = readconf(os.getenv('GATE_CONFIG',
-    '/etc/gate/gate.conf'), 'broker')
-
 # Register the snappy compression with kombu
 kc_register(snappy.compress, snappy.decompress,
             'application/x-snappy', aliases=['snappy'])

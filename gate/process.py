@@ -22,7 +22,7 @@ import uuid
 from kombu.mixins import ConsumerMixin
 from gate.common.daemon import Daemon
 from gate.common.utils import get_logger, config_true_value, readconf, \
-    load_egg, BROKER_CONF
+    load_egg
 from gate.common.pipeline import load_pipelines
 from gate.common.objs import MemoryDataObject, FileDataObject, URLDataObject
 
@@ -174,19 +174,19 @@ class ProcessServer(Daemon):
             log_to_console = True)
         self.gate_dir = conf.get('gate_dir', '/etc/gate')
         self.broker_url = \
-            BROKER_CONF.get('broker_url', 'amqp://guest:guest@localhost:5672//')
+            conf.get('broker_url', 'amqp://guest:guest@localhost:5672//')
         self.use_ssl = \
-            config_true_value(BROKER_CONF.get('use_ssl', 'False'))
+            config_true_value(conf.get('broker_use_ssl', 'False'))
         self.connection_timeout = \
-            int(BROKER_CONF.get('connection_timeout', '5'))
+            int(conf.get('broker_connection_timeout', '5'))
         self.failover_strategy = \
-            BROKER_CONF.get('failover_strategy', 'round-robin')
+            conf.get('broker_failover_strategy', 'round-robin')
         self.prefetch_count = \
-            int(BROKER_CONF.get('prefetch_count', '1'))
+            int(conf.get('prefetch_count', '1'))
         self.object_inline_size = \
-            int(BROKER_CONF.get('object_inline_size', '15728640'))
+            int(conf.get('object_inline_size', '15728640'))
         self.compression = \
-            config_true_value(BROKER_CONF.get('compression', 'None'))
+            config_true_value(conf.get('compression', 'None'))
         self.exchange = kombu.Exchange('gate', 'direct', durable=True)
         self.queue = kombu.Queue('gate.process', self.exchange,
             'gate.process')

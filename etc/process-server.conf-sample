@@ -21,6 +21,28 @@
 # log_statsd_metric_prefix =
 
 [process-server]
+# Broker connection url, used to pass messages between nodes. Multiple brokers can
+# be used seperating the connection strings with a semi-colon ";". The failover
+# strategy can also be changed for multiple connections.
+# broker_url = amqp://guest:guest@localhost:5672//
+# broker_use_ssl = False
+# broker_connection_timeout = 5
+# broker_failover_strategy = round-robin
+
+# Number of messages to prefetch for each worker. This should be adjusted based
+# on the load on the queue.
+# prefetch_count = 1
+
+# Data for an object can be passed around in the queue, so the resulting worker
+# does not have to request for the actual object data manually. Adjusting this
+# can speed up processing, but also can break the queue. Default 15MiB
+# object_inline_size = 15728640
+
+# Message compression can speed up data being passed along the queue,
+# especially for data objects that are large but smaller than the
+# object_inline_size.
+# compression = False
+
 # Large objects are not transported over the broker, an external service
 # is used. Builtin supported protocols: memcached, swift.
 large_object_transport = memcached

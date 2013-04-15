@@ -37,24 +37,27 @@ auth token provided by Keystone, be set in the request: X-Auth-Token.
 
 ### Case API
 
-  * HEAD: /v1/case - Information about case
-  * GET:  /v1/case - List of evidence in case
-  * PUT:  /v1/case - Create a case
-  * POST: /v1/case - Update case information
+  * HEAD:   /v1/case - Information about case
+  * GET:    /v1/case - List of evidence in case
+  * PUT:    /v1/case - Create a case
+  * POST:   /v1/case - Update case information
+  * DELETE: /v1/case - Delete case
 
 ### Evidence API
 
-  * HEAD: /v1/case/evidence - Information about evidence
-  * GET:  /v1/case/evidence - List of objects in evidence
-  * PUT:  /v1/case/evidence - Add evidence to case
-  * POST: /v1/case/evidenec - Update case information
+  * HEAD:   /v1/case/evidence - Information about evidence
+  * GET:    /v1/case/evidence - List of objects in evidence
+  * PUT:    /v1/case/evidence - Add evidence to case
+  * POST:   /v1/case/evidence - Update case information
+  * DELETE: /v1/case/evidence - Delete evidence
 
 ### Object API
 
-  * HEAD: /v1/case/evidence/object - Information about object
-  * GET:  /v1/case/evidence/object - Download evidence data
-  * PUT:  /v1/case/evidence/object - Add object to evidence (marked)
-  * POST: /v1/case/evidence/object - Update object information
+  * HEAD:   /v1/case/evidence/object - Information about object
+  * GET:    /v1/case/evidence/object - Download evidence data
+  * PUT:    /v1/case/evidence/object - Add object to evidence (marked)
+  * POST:   /v1/case/evidence/object - Update object information (marked)
+  * DELETE: /v1/case/evidence/object - Delete added objected (only marked)
 
 ### Search API
 

@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 from gate.common.daemon import Daemon
 from gate.common.utils import get_logger
+from gate.controllers.rpc import AccountController, CaseController, \
+    EvidenceController, ObjectController
 
 
 class EngineServer(Daemon):
@@ -25,19 +25,18 @@ class EngineServer(Daemon):
 
     def __init__(self, conf):
         self.conf = conf
-        self.logger = get_logger(conf, log_route='engine-server')
+        self.logger = get_logger(conf, log_route='engine-server',
+                                 log_to_console=True)
         self.gate_dir = conf.get('gate_dir', '/etc/gate')
-        self.amqp_connection = conf.get('amqp_connection',
-                'amqp://localhost/')
+        self.account_rpc = AccountController(conf, "engine", self.logger)
+        self.case_rpc = CaseController(conf, "engine", self.logger)
+        self.evidence_rpc = EvidenceController(conf, "engine", self.logger)
+        self.object_rpc = ObjectController(conf, "engine", self.logger)
 
     def run_forever(self, *args, **kwargs):
         """Run the process continuously."""
-
-        pass
+        self.account_rpc.consume()
 
     def run_once(self, *args, **kwargs):
         """Run the process one pass."""
-
-        pass
-
-
+        self.account_rpc.consume(count=1)

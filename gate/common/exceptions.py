@@ -67,3 +67,22 @@ class ListingIterNotAuthorized(ListingIterError):
     def __init__(self, aresp):
         self.aresp = aresp
 
+
+class RpcError(GateException):
+    pass
+
+
+class BadRequestError(RpcError):
+    pass
+
+
+class NotFoundError(RpcError):
+    pass
+
+
+class UnknownOperationError(RpcError):
+    pass
+
+
+class WriteConflictError(RpcError):
+    pass

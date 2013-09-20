@@ -13,10 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-from sys import exc_info
-from collections import defaultdict
-from gate.common.pipeline import Pipeline
+from gate.process.common.pipeline import Pipeline
+
 
 class FakeModule(object):
 
@@ -26,92 +24,52 @@ class FakeModule(object):
     def __call__(self):
         pass
 
-    def process(self, proc, data_obj):
-        self.func(proc, data_obj)
+    def process(self, bundle):
+        return self.func(bundle)
+
 
 class FakePipeline(Pipeline):
 
     def __init__(self, name, func=None):
-        self.name = name
-        self.objects = []
-        self.inited = False
-        if func:
-            self.add_module(FakeModule(func))
+        super(FakePipeline, self).__init__(name)
+        self._initialized = True
+        self.add_func(func)
+
+    def add_func(self, func):
+        if not func:
+            return
+        self._initialized = False
+        self.append(FakeModule(func))
+        self._initialized = True
 
     def add_module(self, module):
-        self.objects.append(module)
+        self._initialized = False
+        module()
+        self.append(module)
+        self._initialized = True
 
-class FakeLogger(object):
-    # a thread safe logger
 
-    def __init__(self, *args, **kwargs):
-        self._clear()
-        self.level = logging.NOTSET
-        if 'facility' in kwargs:
-            self.facility = kwargs['facility']
+class FakePipelineDriver(object):
 
-    def _clear(self):
-        self.log_dict = defaultdict(list)
+    def __init__(self):
+        self.pipelines = dict()
 
-    def _store_in(store_name):
-        def stub_fn(self, *args, **kwargs):
-            self.log_dict[store_name].append((args, kwargs))
-        return stub_fn
+    def __getitem__(self, key):
+        return self.get(key)
 
-    error = _store_in('error')
-    info = _store_in('info')
-    warning = _store_in('warning')
-    debug = _store_in('debug')
+    def get(self, name):
+        try:
+            pipeline = self.pipelines[name]
+        except:
+            pipeline = None
 
-    def exception(self, *args, **kwargs):
-        self.log_dict['exception'].append((args, kwargs, str(exc_info()[1])))
+        if not pipeline:
+            return None
 
-    # mock out the StatsD logging methods:
-    increment = _store_in('increment')
-    decrement = _store_in('decrement')
-    timing = _store_in('timing')
-    timing_since = _store_in('timing_since')
-    update_stats = _store_in('update_stats')
-    set_statsd_prefix = _store_in('set_statsd_prefix')
+        return pipeline
 
-    def get_increments(self):
-        return [call[0][0] for call in self.log_dict['increment']]
+    def add_pipeline(self, pipeline, name=None):
+        if not name:
+            name = pipeline.name
 
-    def get_increment_counts(self):
-        counts = {}
-        for metric in self.get_increments():
-            if metric not in counts:
-                counts[metric] = 0
-            counts[metric] += 1
-        return counts
-
-    def setFormatter(self, obj):
-        self.formatter = obj
-
-    def close(self):
-        self._clear()
-
-    def set_name(self, name):
-        # don't touch _handlers
-        self._name = name
-
-    def acquire(self):
-        pass
-
-    def release(self):
-        pass
-
-    def createLock(self):
-        pass
-
-    def emit(self, record):
-        pass
-
-    def handle(self, record):
-        pass
-
-    def flush(self):
-        pass
-
-    def handleError(self, record):
-        pass
+        self.pipelines[name] = pipeline

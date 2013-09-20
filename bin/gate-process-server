@@ -14,10 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gate.process import ProcessServer
-from gate.common.utils import parse_options
-from gate.common.daemon import run_daemon
+from gate.process import main
 
 if __name__ == '__main__':
-    conf_file, options = parse_options(once=True)
-    run_daemon(ProcessServer, conf_file, **options)
+	main()

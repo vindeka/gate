@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 # Copyright (c) 2013 Vindeka, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,17 +15,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gate.common.rpc import RpcController, rpc_method
+from gate.common import log as logging
 
 
-class EvidenceController(RpcController):
+LOG = logging.getLogger(__name__)
 
-    def __init__(self, conf, exchange, logger=None):
+
+class DebugModule(object):
+
+    def __init__(self, conf):
         self.conf = conf
-        self.logger = logger
-        self.exchange = exchange
-        super(EvidenceController, self).__init__(conf, "evidence", exchange, logger=logger)
 
-    @rpc_method
-    def get_evidence(self, evidence=None):
-        self.logger.debug("Get evidence called.")
+    def __call__(self):
+        pass
+
+    def process(self, bundle):
+        for key in bundle.data.iterkeys():
+            print('\t%s: %s' % (key, bundle.data.get(key)))
+
+
+def module_factory(conf):
+    return DebugModule(conf)

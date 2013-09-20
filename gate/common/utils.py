@@ -23,7 +23,6 @@ import os
 import pwd
 import sys
 import time
-import snappy
 import functools
 import pkg_resources
 from hashlib import md5
@@ -55,8 +54,6 @@ utf8_encoder = codecs.getencoder('utf-8')
 
 from logging.handlers import SysLogHandler
 import logging
-
-from kombu.compression import register as kc_register
 
 # setup notice level logging
 
@@ -1721,7 +1718,3 @@ class InputProxy(object):
             raise
         self.bytes_received += len(line)
         return line
-
-# Register the snappy compression with kombu
-kc_register(snappy.compress, snappy.decompress,
-            'application/x-snappy', aliases=['snappy'])

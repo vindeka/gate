@@ -16,7 +16,12 @@
 # limitations under the License.
 
 import hashlib
-from gate.common.utils import get_logger
+
+
+from gate.common import log as logging
+
+
+LOG = logging.getLogger(__name__)
 
 
 class HashModule(object):
@@ -28,9 +33,9 @@ class HashModule(object):
 
     def __init__(self, conf):
         self.conf = conf
-        self.logger = get_logger(conf, log_route='module.hash')
 
     def __call__(self):
+        self.prefix = self.conf.get('prefix', None)
         algos = self.conf.get('algorithms', None)
         if not algos:
             algos = 'md5 sha1 sha256 sha512'
@@ -39,37 +44,37 @@ class HashModule(object):
         for a in algos.split(' '):
             self.algos.append(a.strip())
 
-        self.logger.debug('Initialising hash module with algos: %s'
-                          % algos)
+        LOG.debug('Initialising hash module with algos: %s'
+                  % algos)
 
-    def process(self, proc, data_obj):
+    def process(self, bundle):
         for algo in self.algos:
-            key = 'hash-%s' % algo
-            if not data_obj.has_key(key):
+            if self.prefix:
+                key = '%s-hash-%s' % (self.prefix, algo)
+            else:
+                key = 'hash-%s' % algo
+            if key not in bundle.data:
                 method = getattr(self, algo)
-                data_obj.set(key, method(data_obj))
-                data_obj.reset()
+                bundle.data[key] = method(bundle)
+                bundle.reset()
 
-    def md5(self, data_obj):
-        return self._hash(data_obj, hashlib.md5())
+    def md5(self, bundle):
+        return self._hash(bundle, hashlib.md5())
 
-    def sha1(self, data_obj):
-        return self._hash(data_obj, hashlib.sha1())
+    def sha1(self, bundle):
+        return self._hash(bundle, hashlib.sha1())
 
-    def sha256(self, data_obj):
-        return self._hash(data_obj, hashlib.sha256())
+    def sha256(self, bundle):
+        return self._hash(bundle, hashlib.sha256())
 
-    def sha512(self, data_obj):
-        return self._hash(data_obj, hashlib.sha512())
+    def sha512(self, bundle):
+        return self._hash(bundle, hashlib.sha512())
 
-    def _hash(self, data_obj, hash):
-        hash.update(data_obj.read())
+    def _hash(self, bundle, hash):
+        if bundle.stream:
+            hash.update(bundle.stream.read())
         return hash.hexdigest()
 
 
 def module_factory(conf):
-    """Returns a module for use with gate."""
-
     return HashModule(conf)
-
-

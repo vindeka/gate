@@ -45,8 +45,8 @@ setup(
              'bin/gate-process-server', 'bin/gate-api-server'],
     entry_points={
         'gate.module_factory': [
-            'hash=gate.modules.hash:module_factory',
-            'debug=gate.modules.debug:module_factory'
+            'hash=gate.process.modules.hash:module_factory',
+            'debug=gate.process.modules.debug:module_factory'
         ],
         'gate.transport_factory': [
             'memcached=gate.transports.memcached:transport_factory',

@@ -24,15 +24,15 @@
 #   These shenanigans are to ensure all related objects can be garbage
 # collected. We've seen objects hang around forever otherwise.
 
-import mimetypes
 import os
-from ConfigParser import ConfigParser
 import uuid
+import mimetypes
+
+from oslo.config import cfg
+
 from random import shuffle
 from time import time
-
 from eventlet import Timeout
-
 from gate.common.utils import get_logger, split_path, \
     config_true_value, check_utf8
 from gate.controllers import CaseController

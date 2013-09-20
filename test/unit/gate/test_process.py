@@ -13,192 +13,122 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import uuid
 import unittest
-import kombu
-import logging
+import threading
 
-from gate.process import ProcessServer
-from gate.common.utils import readconf
-from gate.common.objs import MemoryDataObject
-from test import FakeLogger, FakePipeline, FakeModule
+from oslo.config import cfg
+
+from gate.common import log as logging
+from gate.process.server import ProcessServer
+from gate.process.client import ProcessClient
+from test import FakePipeline, FakePipelineDriver
+
 
 class ProcessTest(unittest.TestCase):
 
-    def setUp(self):
-        self.conf_file = readconf('test/etc/process-server.conf', 'process-server')
-        self.process = ProcessServer(self.conf_file)
-        self.process.logger = FakeLogger()
-        with open('test/data/opensource.svg') as fp:
-            self.object_data = fp.read()
+    def __init__(self, *args):
+        cfg.CONF(args=[], project='gate', prog='process-server')
+        cfg.CONF.transport_driver = 'fake'
+        cfg.CONF.transport_url = 'fake:'
+        logging.setup('gate')
+        super(ProcessTest, self).__init__(*args)
 
-    def _broker_mem_obj(self, compress=None):
-        self.data_obj = None
-        obj_id = uuid.uuid4()
-        case_id = uuid.uuid4()
-        parent_id = uuid.uuid4()
-        data = self.object_data[:]
-        def test_func(proc, data_obj):
-            self.data_obj = data_obj
+    def _start_server(self, pipelines=dict(), topic=None, host=None, allow_stop=True):
+        pipeline_driver = FakePipelineDriver()
+        for key, value in pipelines.items():
+            pipeline_driver.add_pipeline(value, name=key)
 
-        pipelines = dict()
-        pipelines['testing'] = FakePipeline('testing', test_func)
-        self.assertTrue(self.process.load(force=True, pipelines=pipelines))
-        self.process.transport.logger = FakeLogger()
-        self.assertTrue(self.process.connect(force=True))
+        server = ProcessServer(
+            host or 'test.host', pipeline_driver=pipeline_driver, topic=topic, allow_stop=allow_stop)
 
-        mem_obj = MemoryDataObject(
-            obj_id,
-            None,
-            self.object_data,
-            case_id=case_id,
-            name='opensource.svg',
-            path='/opensource.svg',
-            parent_id=parent_id,
-            type='file',
-            )
-        conn = self.process.connection
-        with conn.Producer(serializer='pickle',
-                           compression=compress) as producer:
-            producer.publish(mem_obj, exchange=self.process.exchange,
-                routing_key='gate.process', declare=[self.process.queue],
-                headers={'pipeline':'testing'})
-        self.process.run_once()
-        self.process.close()
+        thread = threading.Thread(target=server.start)
+        thread.daemon = True
+        thread.server = server
+        thread.start()
 
-        self.assertTrue(self.data_obj)
-        self.assertEqual(obj_id, self.data_obj.id)
-        self.assertEqual(case_id, self.data_obj.get('case_id'))
-        self.assertEqual('opensource.svg', self.data_obj.get('name'))
-        self.assertEqual('/opensource.svg', self.data_obj.get('path'))
-        self.assertEqual(parent_id, self.data_obj.get('parent_id'))
-        self.assertEqual('file', self.data_obj.get('type'))
-        self.assertEqual(data, self.data_obj.read())
+        return thread
 
-    def test_broker_mem_obj(self):
-        self._broker_mem_obj()
+    def _stop_server(self, client, thread, topic=None):
+        client = client._client
+        if topic is not None:
+            client = client.prepare(topic=topic)
+        client.cast({}, 'stop')
+        thread.join(timeout=30)
 
-    def test_broker_mem_obj_compress(self):
-        self._broker_mem_obj(compress='snappy')
+    def test_default_topic(self):
+        thread = self._start_server()
+        client = ProcessClient(thread.server._transport)
 
-    def _broker_multi(self, count, compress=None):
-        self.objs = dict()
-        for i in range(count):
-            d = dict()
-            d['obj_id'] = uuid.uuid4()
-            d['case_id'] = uuid.uuid4()
-            d['parent_id'] = uuid.uuid4()
-            d['data'] = self.object_data[:] + str(count)
-            self.objs[i] = d
+        self.assertEqual(thread.server.topic, client.topic)
+        self._stop_server(client, thread)
 
-        self.offset = 0
-        self.test_objs = dict()
-        def test_func(proc, data_obj):
-            self.test_objs[self.offset] = data_obj
-            self.offset += 1
+    def test_custom_topic(self):
+        thread = self._start_server(topic='custom')
+        client = ProcessClient(thread.server._transport, topic='custom')
+
+        self.assertEqual(thread.server.topic, client.topic)
+        self._stop_server(client, thread)
+
+    def test_pipeline_process(self):
+        def empty_func(bundle):
+            bundle.data['called'] = True
+            return bundle
 
         pipelines = dict()
-        pipelines['testing'] = FakePipeline('testing', test_func)
-        self.assertTrue(self.process.load(force=True, pipelines=pipelines))
-        self.process.transport.logger = FakeLogger()
-        self.assertTrue(self.process.connect(force=True))
+        pipelines['empty'] = FakePipeline('empty', empty_func)
+        thread = self._start_server(pipelines=pipelines)
+        client = ProcessClient(thread.server._transport)
 
-        conn = self.process.connection
-        with conn.Producer(serializer='pickle',
-                           compression=compress) as producer:
-            for i in range(count):
-                obj = self.objs[i]
-                mem_obj = MemoryDataObject(
-                    obj['obj_id'],
-                    None,
-                    obj['data'],
-                    case_id=obj['case_id'],
-                    name='opensource.svg',
-                    path='/opensource.svg',
-                    parent_id=obj['parent_id'],
-                    type='file',
-                    )
-                producer.publish(mem_obj, exchange=self.process.exchange,
-                    routing_key='gate.process', declare=[self.process.queue],
-                    headers={'pipeline':'testing'})
-        for _ in range(count):
-            self.process.run_once()
-        self.process.close()
+        data = client.process_url('empty', dict(), 'fake://blank')
 
-        for i in range(count):
-            obj = self.objs[i]
-            test_obj = None
-            for o in self.test_objs.values():
-                if o.id == obj['obj_id']:
-                    test_obj = o
-                    break
-            self.assertTrue(test_obj)
-            self.assertEqual(obj['obj_id'], test_obj.id)
-            self.assertEqual(obj['case_id'], test_obj.get('case_id'))
-            self.assertEqual('opensource.svg', test_obj.get('name'))
-            self.assertEqual('/opensource.svg', test_obj.get('path'))
-            self.assertEqual(obj['parent_id'], test_obj.get('parent_id'))
-            self.assertEqual('file', test_obj.get('type'))
-            self.assertEqual(obj['data'], test_obj.read())
+        self._stop_server(client, thread)
 
-    def test_broker_multi_two(self):
-        self._broker_multi(2)
+        self.assertTrue('called' in data)
+        self.assertTrue(data['called'])
 
-    def test_broker_multi_three(self):
-        self._broker_multi(3)
-
-    def test_broker_multi_four(self):
-        self._broker_multi(4)
-
-    def test_broker_multi_two_compress(self):
-        self._broker_multi(2, compress='snappy')
-
-    def test_broker_multi_three_compress(self):
-        self._broker_multi(3, compress='snappy')
-
-    def test_broker_multi_four_compress(self):
-        self._broker_multi(4, compress='snappy')
-
-    def test_pipeline(self):
-        data = self.object_data[:]
-        def test_func(proc, data_obj):
-            self.data_one = data_obj.read()
-        def test_func2(proc, data_obj):
-            self.data_two = data_obj.read()
+    def test_pipeline_exceptions(self):
+        def empty_func(bundle):
+            raise Exception("test")
 
         pipelines = dict()
-        pipe = FakePipeline('testing')
-        pipe.add_module(FakeModule(test_func))
-        pipe.add_module(FakeModule(test_func2))
-        pipelines['testing'] = pipe
-        self.assertTrue(self.process.load(force=True, pipelines=pipelines))
-        self.process.transport.logger = FakeLogger()
-        self.assertTrue(self.process.connect(force=True))
+        pipelines['empty'] = FakePipeline('empty', empty_func)
+        thread = self._start_server(pipelines=pipelines)
+        client = ProcessClient(thread.server._transport)
 
-        mem_obj = MemoryDataObject(
-            uuid.uuid4(),
-            None,
-            self.object_data,
-            case_id=uuid.uuid4(),
-            name='opensource.svg',
-            path='/opensource.svg',
-            parent_id=uuid.uuid4(),
-            type='file',
-            )
-        conn = self.process.connection
-        with conn.Producer(serializer='pickle',
-                           compression=None) as producer:
-            producer.publish(mem_obj, exchange=self.process.exchange,
-                routing_key='gate.process', declare=[self.process.queue],
-                headers={'pipeline':'testing'})
-        self.process.run_once()
-        self.process.close()
+        data = client.process_url('empty', dict(), 'fake://blank')
 
-        self.assertTrue(self.data_one)
-        self.assertTrue(self.data_two)
-        self.assertEqual(data, self.data_one)
-        self.assertEqual(data, self.data_two)
+        self._stop_server(client, thread)
+
+        self.assertTrue('exceptions' in data)
+        self.assertEqual(data['exceptions'][0]['name'], "Exception")
+        self.assertEqual(data['exceptions'][0]['msg'], "test")
+
+    def test_pipeline_multi_modules(self):
+        def test_func(bundle):
+            bundle.data['func'] = True
+            return bundle
+
+        def test_func2(bundle):
+            bundle.data['func2'] = True
+            return bundle
+
+        pipelines = dict()
+        pipe = FakePipeline('multi')
+        pipe.add_func(test_func)
+        pipe.add_func(test_func2)
+        pipelines['multi'] = pipe
+        thread = self._start_server(pipelines=pipelines)
+        client = ProcessClient(thread.server._transport)
+
+        data = client.process_url('multi', dict(), 'fake://blank')
+
+        self._stop_server(client, thread)
+
+        self.assertFalse('exceptions' in data)
+        self.assertTrue('func' in data)
+        self.assertTrue('func2' in data)
+        self.assertTrue(data['func'])
+        self.assertTrue(data['func'])
 
 if __name__ == '__main__':
     unittest.main()

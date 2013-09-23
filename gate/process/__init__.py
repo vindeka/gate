@@ -18,7 +18,6 @@ import socket
 
 from oslo.config import cfg
 from gate.common.daemon import Daemon
-from gate.process.common.pipeline import get_pipeline_driver
 from gate.common import log as logging
 from gate.process.server import ProcessServer
 

@@ -20,7 +20,7 @@ from gate.common.exceptions import GateException
 
 cfg.CONF.register_opts([
     cfg.StrOpt('pipeline_driver',
-               default='gate.process.common.pipeline.driver.DirectoryPipelineDriver',
+               default='gate.process.common.pipeline.drivers.DirectoryPipelineDriver',
                help='Driver to use for loading the pipelines.'),
 ])
 

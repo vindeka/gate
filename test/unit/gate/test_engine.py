@@ -25,13 +25,13 @@ from gate.engine.common.storage.drivers.memory import MemoryDriver
 from test.unit.gate import BaseTestCase
 
 
-class ProcessTest(BaseTestCase):
+class EngineTest(BaseTestCase):
 
     def __init__(self, *args):
         cfg.CONF(args=[], project='gate', prog='engine-server')
         self.enableFakeTransport()
         self.setupLogging()
-        super(ProcessTest, self).__init__(*args)
+        super(EngineTest, self).__init__(*args)
 
     def _start_server(self, storage_driver=None, topic=None, host=None, allow_stop=True):
         if not storage_driver:

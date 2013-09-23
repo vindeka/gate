@@ -14,10 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gate.engine import EngineServer
-from gate.common.utils import parse_options
-from gate.common.daemon import run_daemon
+from gate.engine import main
 
 if __name__ == '__main__':
-    conf_file, options = parse_options(once=True)
-    run_daemon(EngineServer, conf_file, **options)
+    main()

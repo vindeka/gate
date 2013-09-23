@@ -13,3 +13,4 @@ netaddr
 iso8601>=0.1.4
 oslo.config
 oslo.messaging
+leveldb

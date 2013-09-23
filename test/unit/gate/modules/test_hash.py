@@ -23,19 +23,18 @@ from gate.common import log as logging
 from gate.process import ProcessServer
 from gate.process.client import ProcessClient
 from gate.process.modules.hash import HashModule
-from test import FakePipeline, FakePipelineDriver
+from test.unit.gate import BaseTestCase, FakePipeline
 
 
 TEST_DATA = "raw test data"
 
 
-class HashModuleTest(unittest.TestCase):
+class HashModuleTest(BaseTestCase):
 
     def __init__(self, *args):
         cfg.CONF(args=[], project='gate', prog='process-server')
-        cfg.CONF.transport_driver = 'fake'
-        cfg.CONF.transport_url = 'fake:'
-        logging.setup('gate')
+        self.enableFakeTransport()
+        self.setupLogging()
         super(HashModuleTest, self).__init__(*args)
 
     def _start_server(self, pipelines=dict(), topic=None, host=None, allow_stop=True):
@@ -205,3 +204,6 @@ class HashModuleTest(unittest.TestCase):
         sha512 = hashlib.sha512()
         sha512.update(TEST_DATA)
         self.assertEqual(sha512.hexdigest(), data['hash-sha512'])
+
+if __name__ == '__main__':
+    unittest.main()

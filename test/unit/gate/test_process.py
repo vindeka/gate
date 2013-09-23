@@ -21,16 +21,15 @@ from oslo.config import cfg
 from gate.common import log as logging
 from gate.process.server import ProcessServer
 from gate.process.client import ProcessClient
-from test import FakePipeline, FakePipelineDriver
+from test.unit.gate import BaseTestCase, FakePipeline, FakePipelineDriver
 
 
-class ProcessTest(unittest.TestCase):
+class ProcessTest(BaseTestCase):
 
     def __init__(self, *args):
         cfg.CONF(args=[], project='gate', prog='process-server')
-        cfg.CONF.transport_driver = 'fake'
-        cfg.CONF.transport_url = 'fake:'
-        logging.setup('gate')
+        self.enableFakeTransport()
+        self.setupLogging()
         super(ProcessTest, self).__init__(*args)
 
     def _start_server(self, pipelines=dict(), topic=None, host=None, allow_stop=True):

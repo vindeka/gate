@@ -13,13 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import shutil
 import leveldb
+
+from oslo.config import cfg
 
 from gate.common import log as logging
 from gate.common import jsonutils
-from gate.engine.common.storage.drivers import StorageDriverBase, StorageError, STOR_REG
+from gate.engine.storage.container import StorageContainer
+from gate.engine.storage.drivers import StorageDriverBase, StorageError, STOR_REG
 
 LOG = logging.getLogger(__name__)
+
+
+cfg.CONF.register_opts([
+    cfg.StrOpt('storage_leveldb_container_prefix',
+               default='container_',
+               help='Container database prefix.'),
+])
 
 
 class LevelDBDriver(StorageDriverBase):
@@ -28,8 +40,21 @@ class LevelDBDriver(StorageDriverBase):
         if not storage_url.startswith('leveldb:'):
             raise StorageError('Invalid storage url.')
         self.storage_url = storage_url
-        path = self.storage_url.replace('leveldb://', '', 1)
-        self._db = leveldb.LevelDB(path)
+        self._path = self.storage_url.replace('leveldb://', '', 1)
+        self._container_prefix = cfg.CONF.storage_leveldb_container_prefix
+        self._db = leveldb.LevelDB(self._path)
+        self._containers = dict()
+
+    def _check_path(self):
+        if not os.path.isdir(self._path):
+            LOG.error('Storage URL is not a directory, so containers cannot be created.')
+            return False
+        return True
+
+    def _container_path(self, key):
+        if cfg.CONF.storage_leveldb_container_prefix:
+            key = '%s%s' % (cfg.CONF.storage_leveldb_container_prefix, key)
+        return os.path.join(self._path, key)
 
     def _get_key(self, type, uuid):
         return '%s.%s' % (type, uuid)
@@ -103,6 +128,42 @@ class LevelDBDriver(StorageDriverBase):
             return
         index_key = '__index.%s.%s' % (type, key)
         self._db.Put(index_key, '1')
+
+    def get_container(self, uuid):
+        if uuid in self._containers:
+            return self._containers[uuid]
+        if not self._check_path():
+            return None
+        path = self._container_path(uuid)
+        if not os.path.exists(path):
+            return None
+        url = 'leveldb://%s' % path
+        return StorageContainer(uuid, LevelDBDriver(url))
+
+    def create_container(self, uuid):
+        if not self._check_path():
+            return None
+        path = self._container_path(uuid)
+        if os.path.exists(path):
+            shutil.rmtree(path)
+        os.mkdir(path)
+        url = 'leveldb://%s' % path
+        cont = StorageContainer(uuid, LevelDBDriver(url))
+        self._containers[uuid] = cont
+        return cont
+
+    def delete_container(self, uuid):
+        if uuid in self._containers:
+            cont = self._containers[uuid]
+            cont.close()
+            del self._containers[uuid]
+        if not self._check_path():
+            return None
+        path = self._container_path(uuid)
+        if os.path.exists(path):
+            shutil.rmtree(path)
+            return True
+        return False
 
     def close(self):
         del self._db

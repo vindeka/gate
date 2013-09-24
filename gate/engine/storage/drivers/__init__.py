@@ -88,6 +88,27 @@ class StorageDriverBase(object):
         """
         raise NotImplemented()
 
+    def get_container(self, uuid):
+        """Gets container.
+        @param uuid: container id
+        @returns: StorageContainer object
+        """
+        raise NotImplemented()
+
+    def create_container(self, uuid):
+        """Creates a container, if container already exists it is replaced.
+        @param uuid: container id
+        @returns: StorageContainer object
+        """
+        raise NotImplemented()
+
+    def delete_container(self, uuid):
+        """Deletes container.
+        @param uuid: container id
+        @returns: True if success, false otherwise
+        """
+        raise NotImplemented()
+
     def close(self):
         """Closes the connection the driver makes."""
         raise NotImplemented()

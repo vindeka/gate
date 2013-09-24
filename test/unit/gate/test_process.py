@@ -13,12 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import uuid
 import unittest
 import threading
 
 from oslo.config import cfg
 
-from gate.common import log as logging
 from gate.process.server import ProcessServer
 from gate.process.client import ProcessClient
 from test.unit.gate import BaseTestCase, FakePipeline, FakePipelineDriver
@@ -78,7 +78,8 @@ class ProcessTest(BaseTestCase):
         thread = self._start_server(pipelines=pipelines)
         client = ProcessClient(thread.server._transport)
 
-        data = client.process_url('empty', dict(), 'fake://blank')
+        data = client.process_url(str(uuid.uuid4()), 'empty', dict(), 'fake://blank',
+            autosave=False, wait_for_result=True)
 
         self._stop_server(client, thread)
 
@@ -94,7 +95,8 @@ class ProcessTest(BaseTestCase):
         thread = self._start_server(pipelines=pipelines)
         client = ProcessClient(thread.server._transport)
 
-        data = client.process_url('empty', dict(), 'fake://blank')
+        data = client.process_url(str(uuid.uuid4()), 'empty', dict(), 'fake://blank',
+            autosave=False, wait_for_result=True)
 
         self._stop_server(client, thread)
 
@@ -119,7 +121,8 @@ class ProcessTest(BaseTestCase):
         thread = self._start_server(pipelines=pipelines)
         client = ProcessClient(thread.server._transport)
 
-        data = client.process_url('multi', dict(), 'fake://blank')
+        data = client.process_url(str(uuid.uuid4()), 'multi', dict(), 'fake://blank',
+            autosave=False, wait_for_result=True)
 
         self._stop_server(client, thread)
 

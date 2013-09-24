@@ -21,7 +21,7 @@ from oslo.config import cfg
 
 from gate.engine.server import EngineServer
 from gate.engine.client import EngineClient
-from gate.engine.common.storage.drivers.memory import MemoryDriver
+from gate.engine.storage.drivers.memory import MemoryDriver
 from test.unit.gate import BaseTestCase
 
 
@@ -132,6 +132,78 @@ class EngineTest(BaseTestCase):
         self.assertValidId(two)
 
         items = client.case_list(account_uuid)
+        self._stop_server(client, thread)
+
+        found = 0
+        for item in items:
+            if item['uuid'] == one['uuid']:
+                found += 1
+                self.assertEquals(item['name'], 'one')
+            elif item['uuid'] == two['uuid']:
+                found += 1
+                self.assertEquals(item['name'], 'two')
+
+        self.assertEquals(found, 2)
+
+    def test_evidence_add(self):
+        thread = self._start_server()
+        client = EngineClient(thread.server._transport)
+
+        case_uuid = str(uuid.uuid4())
+        result = client.evidence_add(case_uuid=case_uuid, container_format='raw', container_size=1024, name='testname')
+        
+        self.assertValidId(result)
+
+        result2 = client.evidence_get(result['uuid'])
+        self._stop_server(client, thread)
+
+        self.assertEquals(result2['uuid'], result['uuid'])
+        self.assertEquals(result2['name'], 'testname')
+
+    def test_evidence_update(self):
+        thread = self._start_server()
+        client = EngineClient(thread.server._transport)
+
+        case_uuid = str(uuid.uuid4())
+        result = client.evidence_add(case_uuid=case_uuid, container_format='raw', container_size=1024, name='testname')
+        
+        self.assertValidId(result)
+
+        result2 = client.evidence_update(result['uuid'], name='newname')
+        self._stop_server(client, thread)
+
+        self.assertEquals(result2['uuid'], result['uuid'])
+        self.assertTrue('area' not in result2)
+        self.assertEquals(result2['name'], 'newname')
+
+    def test_evidence_remove(self):
+        thread = self._start_server()
+        client = EngineClient(thread.server._transport)
+
+        case_uuid = str(uuid.uuid4())
+        result = client.evidence_add(case_uuid=case_uuid, container_format='raw', container_size=1024, name='testname')
+        
+        self.assertValidId(result)
+
+        result2 = client.evidence_remove(result['uuid'])
+        result3 = client.evidence_get(result['uuid'])
+        self._stop_server(client, thread)
+
+        self.assertTrue(result2)
+        self.assertTrue(result3 is None)
+
+    def test_evidence_list(self):
+        thread = self._start_server()
+        client = EngineClient(thread.server._transport)
+
+        case_uuid = str(uuid.uuid4())
+        one = client.evidence_add(case_uuid=case_uuid, container_format='raw', container_size=1024, name='one')
+        two = client.evidence_add(case_uuid=case_uuid, container_format='raw', container_size=1024, name='two')
+        
+        self.assertValidId(one)
+        self.assertValidId(two)
+
+        items = client.evidence_list(case_uuid)
         self._stop_server(client, thread)
 
         found = 0

@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
+import snappy
 import traceback
 import StringIO
 
@@ -20,8 +22,9 @@ from oslo.config import cfg
 from oslo import messaging
 
 from gate.common import log as logging
-from gate.process.common.bundle import Bundle
-from gate.process.common.pipeline import get_pipeline_driver
+from gate.process.pipeline import get_pipeline_driver
+from gate.process.pipeline.bundle import Bundle
+from gate.engine.client import EngineClient
 
 LOG = logging.getLogger(__name__)
 
@@ -30,8 +33,9 @@ class ProcessAPI(object):
 
     target = messaging.Target(version='1.0')
 
-    def __init__(self, server):
+    def __init__(self, server, engine_client=None):
         self.server = server
+        self._engine_client = engine_client
 
     def _get_pipeline(self, pipeline):
         if not pipeline:
@@ -43,7 +47,19 @@ class ProcessAPI(object):
             return None
         return pipeline
 
-    def process_url(self, ctx, pipeline, data, url):
+    def _save_result(self, evidence_uuid, data, wait=False):
+        if not self._engine_client:
+            LOG.error('Missing engine client, cannot save processing result.')
+        obj_id = None
+        if 'uuid' in data:
+            obj_id = data['uuid']
+        
+        new_id = self._engine_client.evidence_obj_save(evidence_uuid, data, obj_id=obj_id, wait=wait)
+        if wait and new_id:
+            data['uuid'] = new_id
+        return data
+
+    def process_url(self, ctx, evidence_uuid, pipeline, data, url, return_result=False, autosave=True):
         pipeline = self._get_pipeline(pipeline)
         if not pipeline:
             return
@@ -52,32 +68,40 @@ class ProcessAPI(object):
         stream = None
 
         # Perform the actual processing
-        bundle = Bundle(self.server, pipeline, data, stream)
+        bundle = Bundle(self.server, evidence_uuid, pipeline, data, stream)
         try:
             bundle = pipeline.process(bundle)
         except Exception as e:
             bundle.add_exception(e, traceback=''.join(traceback.format_exc()))
 
-        # Only return the bundle data, bundle is no longer used after this pint
-        return bundle.data
+        data = bundle.data
+        if autosave:
+            data = self._save_result(evidence_uuid, data, wait=return_result)
 
-    def process_raw(self, ctx, pipeline, data, raw):
+        if return_result:
+            return data
+
+    def process_raw(self, ctx, evidence_uuid, pipeline, data, raw, return_result=False, autosave=True):
         pipeline = self._get_pipeline(pipeline)
         if not pipeline:
             return
 
         # StringIO for raw data
-        stream = StringIO.StringIO(raw)
+        stream = StringIO.StringIO(snappy.uncompress(base64.b64decode(raw)))
 
         # Perform the actual processing
-        bundle = Bundle(self.server, pipeline, data, stream)
+        bundle = Bundle(self.server, evidence_uuid, pipeline, data, stream)
         try:
             bundle = pipeline.process(bundle)
         except Exception as e:
             bundle.add_exception(e, traceback=''.join(traceback.format_exc()))
 
-        # Only return the bundle data, bundle is no longer used after this pint
-        return bundle.data
+        data = bundle.data
+        if autosave:
+            data = self._save_result(evidence_uuid, data, wait=return_result)
+
+        if return_result:
+            return data
 
 
 class ProcessServer(object):
@@ -94,8 +118,11 @@ class ProcessServer(object):
 
         self._transport = messaging.get_transport(cfg.CONF)
         self._target = messaging.Target(topic=self.topic, server=self.host)
+
+        self._engine_client = EngineClient(self._transport)
+
         self._endpoints = [
-            ProcessAPI(self)
+            ProcessAPI(self, engine_client=self._engine_client)
         ]
         if allow_stop:
             self._endpoints.append(self)

@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import uuid
 import unittest
 import threading
 import hashlib
 
 from oslo.config import cfg
 
-from gate.common import log as logging
 from gate.process import ProcessServer
 from gate.process.client import ProcessClient
 from gate.process.modules.hash import HashModule
@@ -63,7 +63,8 @@ class HashModuleTest(BaseTestCase):
         thread = self._start_server(pipelines=pipelines)
         client = ProcessClient(thread.server._transport)
 
-        data = client.process_url('hashing', dict(), 'fake://blank')
+        data = client.process_url(str(uuid.uuid4()), 'hashing', dict(), 'fake://blank',
+            autosave=False, wait_for_result=True)
 
         self._stop_server(client, thread)
 
@@ -83,7 +84,8 @@ class HashModuleTest(BaseTestCase):
         thread = self._start_server(pipelines=pipelines)
         client = ProcessClient(thread.server._transport)
 
-        data = client.process_url('hashing', dict(), 'fake://blank')
+        data = client.process_url(str(uuid.uuid4()), 'hashing', dict(), 'fake://blank',
+            autosave=False, wait_for_result=True)
 
         self._stop_server(client, thread)
 
@@ -103,7 +105,8 @@ class HashModuleTest(BaseTestCase):
         thread = self._start_server(pipelines=pipelines)
         client = ProcessClient(thread.server._transport)
 
-        data = client.process_url('hashing', dict(), 'fake://blank')
+        data = client.process_url(str(uuid.uuid4()), 'hashing', dict(), 'fake://blank',
+            autosave=False, wait_for_result=True)
 
         self._stop_server(client, thread)
 
@@ -123,7 +126,8 @@ class HashModuleTest(BaseTestCase):
         thread = self._start_server(pipelines=pipelines)
         client = ProcessClient(thread.server._transport)
 
-        data = client.process_url('hashing', dict(), 'fake://blank')
+        data = client.process_url(str(uuid.uuid4()), 'hashing', dict(), 'fake://blank',
+            autosave=False, wait_for_result=True)
 
         self._stop_server(client, thread)
 
@@ -143,7 +147,8 @@ class HashModuleTest(BaseTestCase):
         thread = self._start_server(pipelines=pipelines)
         client = ProcessClient(thread.server._transport)
 
-        data = client.process_url('hashing', dict(), 'fake://blank')
+        data = client.process_url(str(uuid.uuid4()), 'hashing', dict(), 'fake://blank',
+            autosave=False, wait_for_result=True)
 
         self._stop_server(client, thread)
 
@@ -163,7 +168,8 @@ class HashModuleTest(BaseTestCase):
         thread = self._start_server(pipelines=pipelines)
         client = ProcessClient(thread.server._transport)
 
-        data = client.process_url('hashing', dict(), 'fake://blank')
+        data = client.process_url(str(uuid.uuid4()), 'hashing', dict(), 'fake://blank',
+            autosave=False, wait_for_result=True)
 
         self._stop_server(client, thread)
 
@@ -181,7 +187,8 @@ class HashModuleTest(BaseTestCase):
         thread = self._start_server(pipelines=pipelines)
         client = ProcessClient(thread.server._transport)
 
-        data = client.process_raw('hashing', dict(), TEST_DATA)
+        data = client.process_raw(str(uuid.uuid4()), 'hashing', dict(), TEST_DATA,
+            autosave=False, wait_for_result=True)
 
         self._stop_server(client, thread)
 

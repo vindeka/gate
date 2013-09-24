@@ -17,8 +17,10 @@ from oslo.config import cfg
 from oslo import messaging
 
 from gate.common import log as logging
+from gate.common import timeutils
 from gate.common.exceptions import GateException
-from gate.engine.common.storage import get_storage_driver
+from gate.engine.storage import get_storage_driver
+from gate.process.client import ProcessClient
 
 LOG = logging.getLogger(__name__)
 
@@ -35,9 +37,10 @@ class EngineAPI(object):
 
     target = messaging.Target(version='1.0')
 
-    def __init__(self, server):
+    def __init__(self, server, process_client=None):
         self.server = server
         self._storage_driver = server._storage_driver
+        self._process_client = process_client
 
     def case_list(self, *args, **kwargs):
         """List the cases.
@@ -56,6 +59,8 @@ class EngineAPI(object):
         """
         if 'account_uuid' not in kwargs:
             raise MissingKeyError('account_uuid')
+        kwargs['create_date'] = timeutils.strtime()
+        kwargs['update_date'] = kwargs['create_date']
         return self._storage_driver.create('case', **kwargs)
 
     def case_get(self, *args, **kwargs):
@@ -79,6 +84,8 @@ class EngineAPI(object):
             del kwargs['account_uuid']
         uuid = kwargs['case_uuid']
         del kwargs['case_uuid']
+
+        kwargs['update_date'] = timeutils.strtime()
         return self._storage_driver.update('case', uuid, **kwargs)
 
     def case_delete(self, *args, **kwargs):
@@ -88,9 +95,7 @@ class EngineAPI(object):
         """
         if 'case_uuid' not in kwargs:
             raise MissingKeyError('case_uuid')
-        uuid = kwargs['case_uuid']
-        del kwargs['case_uuid']
-        return self._storage_driver.delete('case', uuid)
+        return self._storage_driver.delete('case', kwargs['case_uuid'])
 
     def evidence_list(self, *args, **kwargs):
         """List the evidence.
@@ -99,9 +104,18 @@ class EngineAPI(object):
         """
         if 'case_uuid' not in kwargs:
             raise MissingKeyError('case_uuid')
-        return self._storage_driver.list('evidence', kwargs['case_uuid'])
+        return self._storage_driver.list('evidence', **kwargs)
 
-    def evidence_add(self, case_uuid=None, container_format=None, container_size=None, **kwargs):
+    def evidence_get(self, *args, **kwargs):
+        """Get the evidence.
+        @param evidence_uuid: Evidence id
+        @returns: Key-value pairs
+        """
+        if 'evidence_uuid' not in kwargs:
+            raise MissingKeyError('evidence_uuid')
+        return self._storage_driver.get('evidence', kwargs['evidence_uuid'])
+
+    def evidence_add(self, *args, **kwargs):
         """Adds evidence to case.
         @param case_uuid: Case id
         @param container_format: Format of container
@@ -109,22 +123,25 @@ class EngineAPI(object):
         @param **kwargs: Default key-value pairs
         @returns: Key-value pairs
         """
-        if not case_uuid:
+        if 'case_uuid' not in kwargs:
             raise MissingKeyError('case_uuid')
-        if not container_format:
+        if 'container_format' not in kwargs:
             raise MissingKeyError('container_format')
-        if not container_size:
+        if 'container_size' not in kwargs:
             raise MissingKeyError('container_size')
-        return self._storage_driver.create('evidence', case_uuid=case_uuid,
-            container_format=container_format, container_size=container_size, **kwargs)
 
-    def evidence_update(self, evidence_uuid, **kwargs):
+        kwargs['status'] = 'created'
+        kwargs['create_date'] = timeutils.strtime()
+        kwargs['update_date'] = kwargs['create_date']
+        return self._storage_driver.create('evidence', **kwargs)
+
+    def evidence_update(self, *args, **kwargs):
         """Updates evidence.
         @param evidence_uuid: Evidence id
         @param **kwargs: Key-value pairs to update
         @returns: Key-value pairs
         """
-        if not evidence_uuid:
+        if 'evidence_uuid' not in kwargs:
             raise MissingKeyError('evidence_uuid')
         if 'case_uuid' in kwargs:
             del kwargs['case_uuid']
@@ -132,14 +149,67 @@ class EngineAPI(object):
             raise MissingKeyError('container_format')
         if 'container_size' in kwargs and not kwargs['container_size']:
             raise MissingKeyError('container_size')
-        return self._storage_driver.update('evidence', evidence_uuid=evidence_uuid, **kwargs)
 
-    def evidence_remove(self, evidence_uuid):
+        uuid = kwargs['evidence_uuid']
+        del kwargs['evidence_uuid']
+       
+        kwargs['update_date'] = timeutils.strtime()
+        item = self._storage_driver.update('evidence', uuid, **kwargs)
+
+        return item
+
+    def evidence_remove(self, *args, **kwargs):
         """Removes evidence from case.
         @param evidence_uuid: Evidence id
         @returns: True on success, false otherwise
         """
-        return self._storage_driver.delete('evidence', evidence_uuid=evidence_uuid)
+        if 'evidence_uuid' not in kwargs:
+            raise MissingKeyError('evidence_uuid')
+        return self._storage_driver.delete('evidence', kwargs['evidence_uuid'])
+
+    def evidence_process(self, evidence_uuid, pipeline):
+        """Starts the evidence processing, using the selected pipeline.
+        @param evidence_uuid: Evidence id
+        @param pipeline: Pipeline identifier
+        """
+        # Check for valid storage_url, this must be set before
+        # processing can begin.
+        item = self._storage_driver.get('evidence', evidence_uuid)
+        if '_storage_url' not in item:
+            raise MissingKeyError('_storage_url')
+
+        # Get the evidence container in the storage driver to
+        # hold the processing information for this piece of evidence.
+        container = self._storage_driver.create_container(evidence_uuid)
+
+        # Create object in container that maps to the evidence
+        obj = container.create()
+
+        # Update evidence information
+        item = self._storage_driver.update('evidence', evidence_uuid, {
+            'status': 'processing',
+            'process_start_date': timeutils.strtime(),
+            'process_pipeline': pipeline,
+            '_root_uuid': obj['uuid']
+        })
+
+        # Start the processing
+        self._process_client.process_url(evidence_uuid, pipeline, obj, item['storage_url'])
+
+    def evidence_obj_save(self, evidence_uuid, data, obj_uuid=None):
+        """Saves the object data for the piece of evidence, in the container
+        for the evidence.
+        @param evidence_uuid: evidence id
+        @param data: object data
+        @param obj_uuid: object id, or None if one not assigned
+        @param returns: object id
+        """
+        container = self._storage_driver.get_container(evidence_uuid)
+        if obj_uuid:
+            obj = container.update(obj_uuid, **data)
+        else:
+            obj = container.create(**data)
+        return obj['uuid']
 
 
 class EngineServer(object):
@@ -157,8 +227,11 @@ class EngineServer(object):
 
         self._transport = messaging.get_transport(cfg.CONF)
         self._target = messaging.Target(topic=self.topic, server=self.host)
+
+        self._process_client = ProcessClient(self._transport)
+
         self._endpoints = [
-            EngineAPI(self)
+            EngineAPI(self, process_client=self._process_client)
         ]
         if allow_stop:
             self._endpoints.append(self)

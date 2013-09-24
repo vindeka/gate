@@ -46,6 +46,7 @@ setup(
     entry_points={
         'gate.module_factory': [
             'hash=gate.process.modules.hash:module_factory',
+            'fileinfo=gate.process.modules.fileinfo:module_factory',
             'debug=gate.process.modules.debug:module_factory'
         ],
         'gate.transport_factory': [
@@ -53,7 +54,7 @@ setup(
             'swift=gate.transports.swift:transport_factory'
         ],
         'paste.app_factory': [
-            'api=gate.api:app_factory'
+            'api=gate.api.server:app_factory'
         ],
     },
 )

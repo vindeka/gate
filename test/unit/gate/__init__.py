@@ -18,7 +18,7 @@ import unittest
 from oslo.config import cfg
 
 from gate.common import log as logging
-from gate.process.common.pipeline import Pipeline
+from gate.process.pipeline import Pipeline
 
 
 class FakeModule(object):

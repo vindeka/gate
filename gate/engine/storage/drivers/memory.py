@@ -15,20 +15,23 @@
 
 
 from gate.common import log as logging
-from gate.engine.common.storage.drivers import StorageDriverBase, StorageError, STOR_REG
+from gate.engine.storage.drivers import StorageDriverBase, StorageError, STOR_REG
+from gate.engine.storage.container import StorageContainer
 
 LOG = logging.getLogger(__name__)
 
 
 class MemoryDriver(StorageDriverBase):
 
-    def __init__(self, storage_url):
-        if not storage_url.startswith('memory:'):
+    def __init__(self, storage_url, container=False):
+        if not container and not storage_url.startswith('memory:'):
             LOG.error('Invalid storage url.')
             raise StorageError('Invalid storage url.')
         self.storage_url = storage_url
         self._storage = dict()
         self._index = dict()
+        if not container:
+            self._containers = dict()
 
     def _get_or_create_type(self, type):
         if type not in self._storage:
@@ -97,9 +100,36 @@ class MemoryDriver(StorageDriverBase):
         index_key = '%s.%s' % (type, key)
         self._index[index_key] = True
 
+    def get_container(self, uuid):
+        if not hasattr(self, '_containers'):
+            LOG.error('Cannot call get_container when driver is in container mode.')
+            return None
+        if uuid not in self._containers:
+            return None
+        return self._containers[uuid]
+
+    def create_container(self, uuid):
+        if not hasattr(self, '_containers'):
+            LOG.error('Cannot call create_container when driver is in container mode.')
+            return None
+        cont = StorageContainer(uuid, MemoryDriver(None, True))
+        self._containers[uuid] = cont
+        return cont
+
+    def delete_container(self, uuid):
+        if not hasattr(self, '_containers'):
+            LOG.error('Cannot call delete_container when driver is in container mode.')
+            return None
+        if uuid in self._containers:
+            del self._containers[uuid]
+            return True
+        return False
+
     def close(self):
         self._storage = None
         self._index = None
+        if not hasattr(self, '_containers'):
+            self._containers = None
 
 
 STOR_REG.register('memory', MemoryDriver)

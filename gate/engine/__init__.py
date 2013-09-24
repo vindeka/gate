@@ -40,7 +40,7 @@ class Server(Daemon):
 
     def __init__(self, host):
         self.host = host
-        self.rpc_server = EngineServer(self.host, self.pipelines)
+        self.rpc_server = EngineServer(self.host)
 
     def start(self):
         """Starts the rpc server."""

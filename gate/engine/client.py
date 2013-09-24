@@ -74,6 +74,13 @@ class EngineClient(object):
         """
         return self._client.call({}, 'evidence_list', case_uuid=case_uuid)
 
+    def evidence_get(self, evidence_uuid):
+        """Get the evidence.
+        @param evidence_uuid: Evidence id
+        @returns: Key-value pairs
+        """
+        return self._client.call({}, 'evidence_get', evidence_uuid=evidence_uuid)
+
     def evidence_add(self, case_uuid, container_format, container_size, **kwargs):
         """Adds evidence to case.
         @param case_uuid: Case id
@@ -102,3 +109,22 @@ class EngineClient(object):
         @returns: True on success, false otherwise
         """
         return self._client.call({}, 'evidence_remove', evidence_uuid=evidence_uuid)
+
+    def evidence_process(self, evidence_uuid, pipeline):
+        """Starts the evidence processing, using the selected pipeline.
+        @param evidence_uuid: Evidence id
+        @param pipeline: Pipeline identifier
+        """
+        self._client.cast({}, 'evidence_process', evidence_uuid=evidence_uuid, pipeline=pipeline)
+
+    def evidence_obj_save(self, evidence_uuid, data, obj_uuid=None, wait=False):
+        """Saves the object data for the piece of evidence, in the container
+        for the evidence.
+        @param evidence_uuid: evidence id
+        @param data: object data
+        @param obj_uuid: object id, or None if one not assigned
+        @param returns: object id
+        """
+        if wait:
+            return self._client.call({}, 'evidence_obj_save', evidence_uuid=evidence_uuid, data=data, obj_uuid=obj_uuid)
+        self._client.cast({}, 'evidence_obj_save', evidence_uuid=evidence_uuid, data=data, obj_uuid=obj_uuid)

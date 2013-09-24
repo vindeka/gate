@@ -29,7 +29,7 @@ from urllib import unquote
 
 from gate.common.utils import normalize_timestamp, public, check_metadata
 from gate.common.http import is_success, HTTP_NOT_FOUND
-from gate.controllers.api.base import Controller, get_case_memcache_key
+from gate.api.controllers.base import Controller, get_case_memcache_key
 from gate.common.swob import HTTPBadRequest, HTTPMethodNotAllowed, Request
 
 

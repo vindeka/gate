@@ -16,13 +16,13 @@
 from oslo.config import cfg
 from gate.common import importutils
 
-from gate.engine.common.storage.drivers import STOR_REG
-from gate.engine.common.storage.drivers import *
+from gate.engine.storage.drivers import STOR_REG
+from gate.engine.storage.drivers import *
 
 
 cfg.CONF.register_opts([
     cfg.StrOpt('storage_url',
-               default='sqlite:////etc/gate/storage.db',
+               default='leveldb:///etc/gate/storage.db',
                help='Connection URL to backend storage.'),
     cfg.StrOpt('storage_driver',
                default=None,
